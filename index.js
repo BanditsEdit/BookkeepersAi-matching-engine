@@ -18,7 +18,7 @@ app.post("/match", (req, res) => {
   res.json(result);
 });
 
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
+const PORT = process.env.PORT || 8080;
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`Matching engine running on port ${PORT}`);
 });
