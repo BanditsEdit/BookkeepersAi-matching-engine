@@ -1,24 +1,31 @@
-const express = require("express");
-const bodyParser = require("body-parser");
-const { matchTransaction } = require("./matchEngine");
+const express = require('express');
+const { matchTransaction } = require('./matchEngine');
 
 const app = express();
-app.use(bodyParser.json());
+app.use(express.json());
 
-app.get("/", (req, res) => {
-  res.send("Replit matching engine is live.");
+// ✅ This is your dynamic POST route
+app.post('/match', async (req, res) => {
+  try {
+    const transaction = req.body;
+
+    // 🔁 Await the match engine's result
+    const result = await matchTransaction(transaction);
+
+    // ✅ Return the result to Make.com
+    res.json(result);
+  } catch (err) {
+    console.error('Matching failed:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
-app.post("/match", (req, res) => {
-  const { transaction, invoices, rules } = req.body;
-  if (!transaction || !invoices) {
-    return res.status(400).json({ error: "Missing transaction or invoices" });
-  }
-  const result = matchTransaction(transaction, invoices, rules || []);
-  res.json(result);
+// Optional test route
+app.get('/', (req, res) => {
+  res.send('Venn Matching Engine is running.');
 });
 
 const PORT = process.env.PORT || 8080;
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Matching engine running on port ${PORT}`);
+app.listen(PORT, () => {
+  console.log(`Match Engine live on port ${PORT}`);
 });

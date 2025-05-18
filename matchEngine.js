@@ -1,56 +1,64 @@
-function calculateConfidence(transaction, invoice) {
-  let score = 0;
+const supabase = require('./lib/supabase');
 
-  if (Math.abs(transaction.amount - invoice.amount) < 0.01) score += 40;
+// Fetch all active rules for the client
+async function fetchRulesForClient(clientId) {
+  const { data, error } = await supabase
+    .from('reconciliation_rules')
+    .select('*')
+    .eq('client_id', clientId)
+    .eq('is_active', true);
 
-  if (
-    transaction.description?.toLowerCase().includes(invoice.vendor.toLowerCase())
-  ) score += 30;
+  if (error) {
+    console.error('Supabase rule fetch error:', error);
+    return [];
+  }
 
-  const txDate = new Date(transaction.date);
-  const invDate = new Date(invoice.date);
-  const daysDiff = Math.abs((txDate - invDate) / (1000 * 60 * 60 * 24));
-  if (daysDiff <= 5) score += 30;
-
-  return score;
+  return data;
 }
 
-function matchTransaction(transaction, invoices, rules = []) {
-  // Check rules first
+// Matching logic based on rule and transaction
+function calculateConfidence(transaction, rule) {
+  const amount = transaction.amount;
+  const description = transaction.description.toLowerCase();
+  const keyword = rule.vendor_keyword?.toLowerCase() || '';
+  const min = rule.amount_range?.min ?? 0;
+  const max = rule.amount_range?.max ?? 999999;
+
+  const amountMatch = amount >= min && amount <= max;
+  const descMatch = description.includes(keyword);
+
+  let confidence = 0;
+  if (amountMatch) confidence += 50;
+  if (descMatch) confidence += 50;
+
+  return confidence;
+}
+
+// Main match function
+async function matchTransaction(transaction) {
+  const rules = await fetchRulesForClient(transaction.client_id);
+
   for (let rule of rules) {
-    if (
-      transaction.description?.toLowerCase().includes(rule.vendor_keyword.toLowerCase()) &&
-      transaction.amount >= rule.amount_range.min &&
-      transaction.amount <= rule.amount_range.max
-    ) {
+    const confidence = calculateConfidence(transaction, rule);
+
+    if (confidence >= 90) {
       return {
-        matchType: "rule",
-        ruleUsed: rule.rule_name,
-        confidence: 100,
-        outcome: "auto_reconcile",
-        account_code: rule.account_code,
-        vat_code: rule.vat_code
+        matchType: 'rule',
+        ruleUsed: rule.rule_name || rule.id,
+        confidence,
+        outcome: 'auto_reconcile',
+        accountCode: rule.account_code,
+        vatCode: rule.vat_code,
+        matched: true
       };
     }
   }
 
-  // Check invoices if no rule matched
-  let bestMatch = null;
-  let bestScore = 0;
-
-  for (let invoice of invoices) {
-    const score = calculateConfidence(transaction, invoice);
-    if (score > bestScore) {
-      bestScore = score;
-      bestMatch = invoice;
-    }
-  }
-
   return {
-    matchType: "invoice",
-    matchedInvoiceId: bestMatch?.id || null,
-    confidence: bestScore,
-    outcome: bestScore > 90 ? "auto_reconcile" : "manual_review"
+    matchType: 'none',
+    confidence: 0,
+    outcome: 'manual_review',
+    matched: false
   };
 }
 
