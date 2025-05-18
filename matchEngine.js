@@ -42,7 +42,7 @@ async function matchTransaction(transaction) {
     const confidence = calculateConfidence(transaction, rule);
 
     if (confidence >= 90) {
-      return {
+      const result = {
         matchType: 'rule',
         ruleUsed: rule.rule_name || rule.id,
         confidence,
@@ -51,15 +51,61 @@ async function matchTransaction(transaction) {
         vatCode: rule.vat_code,
         matched: true
       };
+
+      // Log audit + update
+      await logMatchAudit(transaction.client_id, transaction.id, result);
+      await updateTransactionStatus(transaction.id, result);
+
+      return result;
     }
   }
 
-  return {
+  const fallback = {
     matchType: 'none',
     confidence: 0,
     outcome: 'manual_review',
     matched: false
   };
+
+  await logMatchAudit(transaction.client_id, transaction.id, fallback);
+  await updateTransactionStatus(transaction.id, fallback);
+
+  return fallback;
 }
 
 module.exports = { matchTransaction };
+
+async function logMatchAudit(clientId, transactionId, result) {
+  const { error } = await supabase
+    .from('reconciliation_audit_log')
+    .insert([{
+      client_id: clientId,
+      transaction_id: transactionId,
+      action_type: result.matched ? 'auto_match' : 'manual_review',
+      rule_used: result.ruleUsed || null,
+      confidence_score: result.confidence,
+      reconciled: result.outcome === 'auto_reconcile',
+      reconciled_at: result.outcome === 'auto_reconcile' ? new Date().toISOString() : null
+    }]);
+
+  if (error) console.error('Failed to log audit:', error);
+}
+
+async function updateTransactionStatus(transactionId, result) {
+  const updateFields = {
+    status: result.outcome === 'auto_reconcile' ? 'matched' : 'manual_review',
+    matched_invoice_id: result.ruleUsed || null,
+    account_code: result.accountCode || null,
+    vat_code: result.vatCode || null
+  };
+
+  const { error } = await supabase
+    .from('transactions_raw')
+    .update(updateFields)
+    .eq('id', transactionId);
+
+  if (error) {
+    console.error('Failed to update transaction:', error);
+  }
+}
+
