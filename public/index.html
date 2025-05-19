@@ -19,9 +19,11 @@
   </table>
 
   <script>
-    async function loadTransactions() {
+    async function loadTransactions() {      
       const res = await fetch('/pending-reviews');
-      const data = await res.json();
+      const json = await res.json();
+      const data = json.data || []; // ✅ pull out the array
+
 
       const tbody = document.querySelector('#transactionsTable tbody');
       tbody.innerHTML = '';
