@@ -1,0 +1,54 @@
+<!-- public/index.html -->
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Venn Reconciliation Dashboard</title>
+</head>
+<body>
+  <h1>Pending Approvals</h1>
+  <table id="transactionsTable" border="1">
+    <thead>
+      <tr>
+        <th>Description</th>
+        <th>Amount</th>
+        <th>Confidence</th>
+        <th>Approve</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <script>
+    async function loadTransactions() {
+      const res = await fetch('/pending-reviews');
+      const data = await res.json();
+
+      const tbody = document.querySelector('#transactionsTable tbody');
+      tbody.innerHTML = '';
+
+      data.forEach(tx => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>${tx.description}</td>
+          <td>£${tx.amount}</td>
+          <td>${tx.confidence_score || 'N/A'}%</td>
+          <td><button onclick="approve('${tx.id}', '${tx.client_id}', ${tx.confidence_score})">Approve</button></td>
+        `;
+        tbody.appendChild(row);
+      });
+    }
+
+    async function approve(id, client_id, confidence_score) {
+      await fetch(`/approve/${id}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ approved_by: 'admin@venn.com', client_id, confidence_score })
+      });
+      alert('Transaction approved!');
+      loadTransactions(); // refresh table
+    }
+
+    loadTransactions();
+  </script>
+</body>
+</html>

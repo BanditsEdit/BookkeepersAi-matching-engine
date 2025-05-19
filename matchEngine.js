@@ -69,6 +69,8 @@ async function matchTransaction(transaction) {
 
   await logMatchAudit(transaction.client_id, transaction.id, fallback);
   await updateTransactionStatus(transaction.id, fallback);
+  await createException(transaction, fallback);
+
 
   return fallback;
 }
@@ -109,3 +111,17 @@ async function updateTransactionStatus(transactionId, result) {
   }
 }
 
+async function createException(transaction, result) {
+  const { error } = await supabase
+    .from('exceptions')
+    .insert([{
+      transaction_id: transaction.id,
+      client_id: transaction.client_id,
+      reason: 'No rule matched with high confidence',
+      confidence_score: result.confidence,
+      is_resolved: false,
+      created_at: new Date().toISOString()
+    }]);
+
+  if (error) console.error('Failed to create exception:', error);
+}
