@@ -1,19 +1,20 @@
 const express = require('express');
 const { matchTransaction } = require('./matchEngine');
 
-const app = express();
-app.use(express.static(path.join(__dirname, 'public')));
-app.use(express.json());
-
 const path = require('path');
-app.use(express.static(path.join(__dirname, 'public')));
 
 const axios = require('axios'); // add at the top of your file
 
 const auth = require('basic-auth'); // For login protection
 
+const supabase = require('./lib/supabase')
+
+const app = express();
+app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.json());
+
 const adminAuth = (req, res, next) => {
-  const user = auth(req);
+const user = auth(req);
   if (!user || user.name !== 'venn' || user.pass !== 'securepass123') {
     res.set('WWW-Authenticate', 'Basic realm="Secure Area"');
     return res.status(401).send('Authentication required.');
