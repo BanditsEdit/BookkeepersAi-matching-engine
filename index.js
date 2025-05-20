@@ -2,6 +2,7 @@ const express = require('express');
 const { matchTransaction } = require('./matchEngine');
 
 const app = express();
+app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
 
 const path = require('path');
