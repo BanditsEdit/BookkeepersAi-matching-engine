@@ -1,30 +1,105 @@
 <!-- public/index.html -->
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Venn Reconciliation Dashboard</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #f3f4f6;
+      margin: 0;
+      padding: 20px;
+      color: #111827;
+    }
+
+    h1 {
+      font-size: 2rem;
+      margin-bottom: 1.5rem;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      box-shadow: 0 0 0 1px #e5e7eb;
+      background-color: white;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    th, td {
+      text-align: left;
+      padding: 12px 16px;
+      border-bottom: 1px solid #e5e7eb;
+    }
+
+    th {
+      background-color: #f9fafb;
+      font-weight: 600;
+    }
+
+    tr:hover {
+      background-color: #f3f4f6;
+    }
+
+    .approve-btn {
+      padding: 8px 14px;
+      background: linear-gradient(135deg, #0070f3, #f81ce5);
+      border: none;
+      color: white;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .approve-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 14px rgba(0, 118, 255, 0.39);
+    }
+
+    .logout-container {
+      text-align: right;
+      margin-bottom: 10px;
+    }
+
+    .logout-container button {
+      background-color: #ef4444;
+      color: white;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+  </style>
 </head>
 <body>
+  <div class="logout-container">
+    <button onclick="logout()">Logout</button>
+  </div>
   <h1>Pending Approvals</h1>
-  <table id="transactionsTable" border="1">
+  <table id="transactionsTable">
     <thead>
       <tr>
         <th>Description</th>
         <th>Amount</th>
         <th>Confidence</th>
-        <th>Approve</th>
+        <th>Action</th>
       </tr>
     </thead>
     <tbody></tbody>
   </table>
 
   <script>
-    async function loadTransactions() {      
+    async function loadTransactions() {
       const res = await fetch('/pending-reviews');
+      if (res.status === 401) {
+        window.location.href = '/';
+        return;
+      }
+
       const json = await res.json();
-      const data = json.data || []; // ✅ pull out the array
-
-
+      const data = json.data || [];
       const tbody = document.querySelector('#transactionsTable tbody');
       tbody.innerHTML = '';
 
@@ -34,7 +109,7 @@
           <td>${tx.description}</td>
           <td>£${tx.amount}</td>
           <td>${tx.confidence_score || 'N/A'}%</td>
-          <td><button onclick="approve('${tx.id}', '${tx.client_id}', ${tx.confidence_score})">Approve</button></td>
+          <td><button class="approve-btn" onclick="approve('${tx.id}', '${tx.client_id}', ${tx.confidence_score})">Approve</button></td>
         `;
         tbody.appendChild(row);
       });
@@ -47,7 +122,12 @@
         body: JSON.stringify({ approved_by: 'admin@venn.com', client_id, confidence_score })
       });
       alert('Transaction approved!');
-      loadTransactions(); // refresh table
+      loadTransactions();
+    }
+
+    function logout() {
+      document.cookie = 'authorization=; Max-Age=0';
+      window.location.href = '/';
     }
 
     loadTransactions();
