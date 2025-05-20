@@ -57,10 +57,10 @@ app.post('/match', async (req, res) => {
   }
 });
 
-// Optional test route
-app.get('/', adminAuth, (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+app.get('/', (req, res) => {
+  res.send('Venn Matching Engine is live.');
 });
+
 
 app.post('/approve/:id', async (req, res) => {
   const transactionId = req.params.id;
