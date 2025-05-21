@@ -79,7 +79,7 @@ app.post('/match', async (req, res) => {
 
 // Optional test route
 app.get('/', adminAuth, (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+  res.sendFile(path.join(__dirname, 'public', 'pending-reviews.html'));
 });
 
 app.post('/approve/:id', async (req, res) => {

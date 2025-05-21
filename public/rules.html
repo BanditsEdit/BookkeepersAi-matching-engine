@@ -3,33 +3,22 @@
 <head>
   <meta charset="UTF-8" />
   <title>Reconciliation Rules</title>
-  <style>
-    body {
-      font-family: 'Segoe UI', sans-serif;
-      background-color: #f3f4f6;
-      padding: 20px;
-    }
-    h1 {
-      margin-bottom: 20px;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      background: white;
-      border-radius: 8px;
-      box-shadow: 0 0 0 1px #ddd;
-    }
-    th, td {
-      padding: 12px;
-      text-align: left;
-      border-bottom: 1px solid #eee;
-    }
-    th {
-      background-color: #f9fafb;
-    }
-  </style>
+  <link rel="stylesheet" href="style.css" />
+
 </head>
 <body>
+  <div class="navbar">
+    <div class="nav-left">
+      <span class="logo">Client Portal</span>
+      <a href="pending-reviews.html">Dashboard</a>
+      <a href="audit.html">Audit Log</a>
+      <a href="rules.html">Rules</a>
+    </div>
+    <div class="nav-right">
+      <button onclick="logout()">Logout</button>
+    </div>
+  </div>
+
   <h1>Reconciliation Rules</h1>
   <table id="rulesTable">
     <thead>
@@ -62,6 +51,11 @@
         `;
         tbody.appendChild(row);
       });
+    }
+
+    function logout() {
+      document.cookie = 'authorization=; Max-Age=0';
+      window.location.href = '/';
     }
 
     loadRules();
