@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Reconciliation Rules</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background-color: #f3f4f6;
+      padding: 20px;
+    }
+    h1 {
+      margin-bottom: 20px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+      border-radius: 8px;
+      box-shadow: 0 0 0 1px #ddd;
+    }
+    th, td {
+      padding: 12px;
+      text-align: left;
+      border-bottom: 1px solid #eee;
+    }
+    th {
+      background-color: #f9fafb;
+    }
+  </style>
+</head>
+<body>
+  <h1>Reconciliation Rules</h1>
+  <table id="rulesTable">
+    <thead>
+      <tr>
+        <th>Rule Name</th>
+        <th>Keyword</th>
+        <th>Amount Range</th>
+        <th>Account Code</th>
+        <th>VAT Code</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+
+  <script>
+    async function loadRules() {
+      const res = await fetch('/rules');
+      const data = (await res.json()).data || [];
+      const tbody = document.querySelector('#rulesTable tbody');
+      tbody.innerHTML = '';
+
+      data.forEach(rule => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>${rule.rule_name}</td>
+          <td>${rule.vendor_keyword}</td>
+          <td>£${rule.amount_range.min} - £${rule.amount_range.max}</td>
+          <td>${rule.account_code}</td>
+          <td>${rule.vat_code}</td>
+        `;
+        tbody.appendChild(row);
+      });
+    }
+
+    loadRules();
+  </script>
+</body>
+</html>

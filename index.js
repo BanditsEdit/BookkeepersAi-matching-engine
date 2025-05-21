@@ -41,6 +41,26 @@ app.get('/pending-reviews', adminAuth, async (req, res) => {
   }
 });
 
+app.get('/audit-log', adminAuth, async (req, res) => {
+  const { data, error } = await supabase
+    .from('reconciliation_audit_log')
+    .select('*')
+    .order('reconciled_at', { ascending: false });
+
+  if (error) return res.status(500).json({ error: 'Could not load audit log' });
+  res.json({ data });
+});
+
+app.get('/rules', adminAuth, async (req, res) => {
+  const { data, error } = await supabase
+    .from('reconciliation_rules') // use your real table name
+    .select('*');
+
+  if (error) return res.status(500).json({ error: 'Could not load rules' });
+  res.json({ data });
+});
+
+
 // ✅ This is your dynamic POST route
 app.post('/match', async (req, res) => {
   try {
@@ -57,10 +77,10 @@ app.post('/match', async (req, res) => {
   }
 });
 
-app.get('/', (req, res) => {
-  res.send('Venn Matching Engine is live.');
+// Optional test route
+app.get('/', adminAuth, (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
-
 
 app.post('/approve/:id', async (req, res) => {
   const transactionId = req.params.id;
@@ -90,7 +110,7 @@ app.post('/approve/:id', async (req, res) => {
       reconciled: true,
       reconciled_at: new Date().toISOString(),
     }]);
-    
+
     try {
       await axios.post('https://hook.eu2.make.com/ht9piochu6vw2t46suvqumnqsh3os5jp', {
         transaction_id: transactionId,
@@ -124,4 +144,3 @@ const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
   console.log(`Match Engine live on port ${PORT}`);
 });
-
