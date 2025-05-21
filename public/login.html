@@ -5,15 +5,7 @@
   <title>Login – Client Portal</title>
   <link rel="stylesheet" href="style.css" />
   <style>
-    .login-wrapper {
-      max-width: 400px;
-      margin: 100px auto;
-      background-color: grey;
-      padding: 80px;
-      border-radius: 10px;
-      box-shadow: 0 10px 25px rgba(0,0,0,0.1);
-    }
-
+ 
     .login-wrapper h2 {
       text-align: center;
       margin-bottom: 20px;
@@ -21,9 +13,9 @@
     }
 
     .login-wrapper input {
-      width: 95%;
-      padding: 10px 10px;
-      margin-bottom: 11px;
+      width: 93%;
+      padding: 12px;
+      margin-bottom: 16px;
       border-radius: 6px;
       border: 1px solid #ccc;
     }
@@ -33,7 +25,7 @@
       background-color: #1f2937;
       color: white;
       border: none;
-      padding: 10px;
+      padding: 12px;
       border-radius: 6px;
       font-weight: bold;
       cursor: pointer;
@@ -53,37 +45,34 @@
 </head>
 <body>
   <div class="login-wrapper">
-    <h2>Login</h2>
+    <h2>Enter Your Access Token</h2>
     <div id="error" class="error-message"></div>
-    <input type="text" id="username" placeholder="Username" />
-    <input type="password" id="password" placeholder="Password" />
+    <input type="text" id="accessToken" placeholder="Paste your token here" />
     <button onclick="login()">Login</button>
   </div>
 
   <script>
     async function login() {
-      const username = document.getElementById('username').value;
-      const password = document.getElementById('password').value;
+      const token = document.getElementById('accessToken').value;
 
-      if (!username || !password) {
-        document.getElementById('error').innerText = "Please fill in both fields.";
+      if (!token) {
+        document.getElementById('error').innerText = "Please enter your token.";
         return;
       }
 
-      const token = btoa(`${username}:${password}`);
-
-      const res = await fetch('/pending-reviews', {
-        method: 'GET',
+      const res = await fetch('/rules', {
         headers: { 'Authorization': token }
       });
 
       if (res.status === 200) {
+        // Save the token in a cookie
         document.cookie = `authorization=${token}; path=/`;
-        const urlParams = new URLSearchParams(window.location.search);
-        const redirect = urlParams.get('redirect') || 'pending-reviews';
+
+        const params = new URLSearchParams(window.location.search);
+        const redirect = params.get('redirect') || 'pending-reviews';
         window.location.href = `${redirect}.html`;
       } else {
-        document.getElementById('error').innerText = "Invalid credentials.";
+        document.getElementById('error').innerText = "Invalid or expired token.";
       }
     }
   </script>

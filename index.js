@@ -6,14 +6,13 @@ const supabase = require('./lib/supabase');
 
 const app = express();
 app.use(express.static(path.join(__dirname, 'public')));
-app.use(express.json()); // for JSON body parsing
+app.use(express.json());
 
 // ✅ Supabase token-based auth middleware
 const authWithSupabase = async (req, res, next) => {
   const token = req.headers['authorization'];
-  if (!token) {
-    return res.status(401).send('No token provided.');
-  }
+
+  if (!token) return res.status(401).send('No token provided.');
 
   const { data, error } = await supabase
     .from('client_access')
@@ -21,8 +20,26 @@ const authWithSupabase = async (req, res, next) => {
     .eq('access_token', token)
     .single();
 
-  if (error || !data || data.status !== 'active') {
-    return res.status(403).send('Access denied.');
+  if (error || !data) return res.status(403).send('Access denied.');
+
+  const now = new Date();
+
+  if (data.status !== 'active') return res.status(403).send('Access revoked.');
+
+  if (data.expires_at && new Date(data.expires_at) < now) {
+    await supabase
+      .from('client_access')
+      .update({ status: 'expired' })
+      .eq('access_token', token);
+    return res.status(403).send('Token expired.');
+  }
+
+  if (data.reminder_count >= 3) {
+    await supabase
+      .from('client_access')
+      .update({ status: 'revoked' })
+      .eq('access_token', token);
+    return res.status(403).send('Access revoked after 3 missed reminders.');
   }
 
   req.client = data;
@@ -34,15 +51,15 @@ app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
 
-// ✅ Secure endpoints
-
+// ✅ Per-client filtered routes
 app.get('/pending-reviews', authWithSupabase, async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('transactions_raw')
       .select('*')
       .eq('status', 'matched')
-      .is('approved_at', null);
+      .is('approved_at', null)
+      .eq('client_id', req.client.client_id);
 
     if (error) throw error;
     res.json(data);
@@ -56,16 +73,38 @@ app.get('/audit-log', authWithSupabase, async (req, res) => {
   const { data, error } = await supabase
     .from('reconciliation_audit_log')
     .select('*')
+    .eq('client_id', req.client.client_id)
     .order('reconciled_at', { ascending: false });
 
   if (error) return res.status(500).json({ error: 'Could not load audit log' });
   res.json({ data });
 });
 
+app.get('/exceptions', authWithSupabase, async (req, res) => {
+  try {
+    const { data, error } = await supabase
+      .from('exceptions')
+      .select('*')
+      .eq('client_id', req.client.client_id)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching exceptions:', error);
+      return res.status(500).json({ error: 'Could not fetch exceptions' });
+    }
+
+    res.json({ data });
+  } catch (err) {
+    console.error('Unexpected error:', err.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 app.get('/rules', authWithSupabase, async (req, res) => {
   const { data, error } = await supabase
     .from('reconciliation_rules')
-    .select('*');
+    .select('*')
+    .eq('client_id', req.client.client_id);
 
   if (error) return res.status(500).json({ error: 'Could not load rules' });
   res.json({ data });
@@ -96,7 +135,8 @@ app.post('/approve/:id', authWithSupabase, async (req, res) => {
         approved_at: new Date().toISOString(),
         status: 'reconciled',
       })
-      .eq('id', transactionId);
+      .eq('id', transactionId)
+      .eq('client_id', req.client.client_id); // 👈 prevent cross-client approvals
 
     if (updateError) {
       return res.status(500).json({ error: 'Failed to approve transaction.' });
@@ -104,7 +144,7 @@ app.post('/approve/:id', authWithSupabase, async (req, res) => {
 
     await supabase.from('reconciliation_audit_log').insert([{
       transaction_id: transactionId,
-      client_id: req.body.client_id || null,
+      client_id: req.client.client_id,
       action_type: 'human_approved',
       confidence_score: req.body.confidence_score || null,
       reconciled: true,
@@ -114,7 +154,7 @@ app.post('/approve/:id', authWithSupabase, async (req, res) => {
     try {
       await axios.post('https://hook.eu2.make.com/ht9piochu6vw2t46suvqumnqsh3os5jp', {
         transaction_id: transactionId,
-        client_id: req.body.client_id,
+        client_id: req.client.client_id,
         confidence_score: req.body.confidence_score,
         approved_by: approvedBy,
       });
@@ -122,7 +162,7 @@ app.post('/approve/:id', authWithSupabase, async (req, res) => {
       console.error('Webhook to Make failed:', webhookErr.message);
       await supabase.from('webhook_failures').insert([{
         transaction_id: transactionId,
-        client_id: req.body.client_id,
+        client_id: req.client.client_id,
         approved_by: approvedBy,
         failure_reason: webhookErr.message,
         attempted_at: new Date().toISOString(),
@@ -137,7 +177,7 @@ app.post('/approve/:id', authWithSupabase, async (req, res) => {
   }
 });
 
-// ✅ 404 fallback
+// Fallback
 app.use((req, res) => {
   res.status(404).send('Not Found');
 });

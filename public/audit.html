@@ -12,6 +12,7 @@
       <a href="pending-reviews.html">Dashboard</a>
       <a href="audit.html">Audit Log</a>
       <a href="rules.html">Rules</a>
+      <a href="exceptions.html">Exceptions</a>
     </div>
     <div class="nav-right">
       <button onclick="logout()">Logout</button>
@@ -71,7 +72,7 @@
 
       function logout() {
         document.cookie = 'authorization=; Max-Age=0';
-        window.location.href = '/';
+        window.location.href = 'https://bookkeppersai.banditsaimarketing.com';
       }
 
       loadAuditLog();
