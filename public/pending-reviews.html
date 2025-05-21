@@ -1,12 +1,9 @@
-<!-- public/index.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Reconciliation Dashboard</title>
+  <title>Pending Approvals</title>
   <link rel="stylesheet" href="style.css" />
-
 </head>
 <body>
   <div class="navbar">
@@ -20,8 +17,9 @@
       <button onclick="logout()">Logout</button>
     </div>
   </div>
-  
+
   <h1>Pending Approvals</h1>
+
   <table id="transactionsTable">
     <thead>
       <tr>
@@ -35,46 +33,69 @@
   </table>
 
   <script>
-    async function loadTransactions() {
-      const res = await fetch('/pending-reviews');
-      if (res.status === 401) {
-        window.location.href = '/';
-        return;
+    const tokenCookie = document.cookie.split('; ').find(row => row.startsWith('authorization='));
+
+    if (!tokenCookie) {
+      window.location.href = `/login.html?redirect=pending-reviews`;
+    } else {
+      const token = tokenCookie.split('=')[1];
+
+      async function loadTransactions() {
+        const res = await fetch('/pending-reviews', {
+          headers: { 'Authorization': token }
+        });
+
+        if (!res.ok) {
+          alert("Session expired or access denied.");
+          window.location.href = `/login.html?redirect=pending-reviews`;
+          return;
+        }
+
+        const data = await res.json();
+        const tbody = document.querySelector('#transactionsTable tbody');
+        tbody.innerHTML = '';
+
+        data.forEach(tx => {
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td>${tx.description}</td>
+            <td>£${tx.amount}</td>
+            <td>${tx.confidence_score || 'N/A'}%</td>
+            <td>
+              <button class="approve-btn" onclick="approve('${tx.id}', '${tx.client_id}', ${tx.confidence_score})">
+                Approve
+              </button>
+            </td>
+          `;
+          tbody.appendChild(row);
+        });
       }
 
-      const json = await res.json();
-      const data = json.data || [];
-      const tbody = document.querySelector('#transactionsTable tbody');
-      tbody.innerHTML = '';
+      async function approve(id, client_id, confidence_score) {
+        await fetch(`/approve/${id}`, {
+          method: 'POST',
+          headers: {
+            'Authorization': token,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            approved_by: 'admin@venn.com',
+            client_id,
+            confidence_score
+          })
+        });
 
-      data.forEach(tx => {
-        const row = document.createElement('tr');
-        row.innerHTML = `
-          <td>${tx.description}</td>
-          <td>£${tx.amount}</td>
-          <td>${tx.confidence_score || 'N/A'}%</td>
-          <td><button class="approve-btn" onclick="approve('${tx.id}', '${tx.client_id}', ${tx.confidence_score})">Approve</button></td>
-        `;
-        tbody.appendChild(row);
-      });
-    }
+        alert('Transaction approved.');
+        loadTransactions();
+      }
 
-    async function approve(id, client_id, confidence_score) {
-      await fetch(`/approve/${id}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ approved_by: 'admin@venn.com', client_id, confidence_score })
-      });
-      alert('Transaction approved!');
+      function logout() {
+        document.cookie = 'authorization=; Max-Age=0';
+        window.location.href = '/';
+      }
+
       loadTransactions();
     }
-
-    function logout() {
-      document.cookie = 'authorization=; Max-Age=0';
-      window.location.href = '/';
-    }
-
-    loadTransactions();
   </script>
 </body>
 </html>

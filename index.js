@@ -1,27 +1,42 @@
 const express = require('express');
-const { matchTransaction } = require('./matchEngine');
-
 const path = require('path');
-
-const axios = require('axios'); // add at the top of your file
-
-const auth = require('basic-auth'); // For login protection
-
-const supabase = require('./lib/supabase')
+const axios = require('axios');
+const { matchTransaction } = require('./matchEngine');
+const supabase = require('./lib/supabase');
 
 const app = express();
 app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.json()); // for JSON body parsing
 
-const adminAuth = (req, res, next) => {
-const user = auth(req);
-  if (!user || user.name !== 'venn' || user.pass !== 'securepass123') {
-    res.set('WWW-Authenticate', 'Basic realm="Secure Area"');
-    return res.status(401).send('Authentication required.');
+// ✅ Supabase token-based auth middleware
+const authWithSupabase = async (req, res, next) => {
+  const token = req.headers['authorization'];
+  if (!token) {
+    return res.status(401).send('No token provided.');
   }
+
+  const { data, error } = await supabase
+    .from('client_access')
+    .select('*')
+    .eq('access_token', token)
+    .single();
+
+  if (error || !data || data.status !== 'active') {
+    return res.status(403).send('Access denied.');
+  }
+
+  req.client = data;
   next();
 };
 
-app.get('/pending-reviews', adminAuth, async (req, res) => {
+// 🏠 Public login page
+app.get('/', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'login.html'));
+});
+
+// ✅ Secure endpoints
+
+app.get('/pending-reviews', authWithSupabase, async (req, res) => {
   try {
     const { data, error } = await supabase
       .from('transactions_raw')
@@ -29,19 +44,15 @@ app.get('/pending-reviews', adminAuth, async (req, res) => {
       .eq('status', 'matched')
       .is('approved_at', null);
 
-    if (error) {
-      console.error('Error fetching pending approvals:', error);
-      return res.status(500).json({ error: 'Could not fetch transactions' });
-    }
-
+    if (error) throw error;
     res.json(data);
   } catch (err) {
-    console.error('Unexpected error:', err);
-    res.status(500).json({ error: 'Server error' });
+    console.error('Error fetching pending approvals:', err);
+    res.status(500).json({ error: 'Could not fetch transactions' });
   }
 });
 
-app.get('/audit-log', adminAuth, async (req, res) => {
+app.get('/audit-log', authWithSupabase, async (req, res) => {
   const { data, error } = await supabase
     .from('reconciliation_audit_log')
     .select('*')
@@ -51,25 +62,20 @@ app.get('/audit-log', adminAuth, async (req, res) => {
   res.json({ data });
 });
 
-app.get('/rules', adminAuth, async (req, res) => {
+app.get('/rules', authWithSupabase, async (req, res) => {
   const { data, error } = await supabase
-    .from('reconciliation_rules') // use your real table name
+    .from('reconciliation_rules')
     .select('*');
 
   if (error) return res.status(500).json({ error: 'Could not load rules' });
   res.json({ data });
 });
 
-
-// ✅ This is your dynamic POST route
+// 🔁 Match Engine
 app.post('/match', async (req, res) => {
   try {
     const transaction = req.body;
-
-    // 🔁 Await the match engine's result
     const result = await matchTransaction(transaction);
-
-    // ✅ Return the result to Make.com
     res.json(result);
   } catch (err) {
     console.error('Matching failed:', err);
@@ -77,23 +83,18 @@ app.post('/match', async (req, res) => {
   }
 });
 
-// Optional test route
-app.get('/', adminAuth, (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'pending-reviews.html'));
-});
-
-app.post('/approve/:id', async (req, res) => {
+// ✅ Approve + Log + Webhook
+app.post('/approve/:id', authWithSupabase, async (req, res) => {
   const transactionId = req.params.id;
   const approvedBy = req.body.approved_by || 'admin@venn.com';
 
   try {
-    // ✅ Update Supabase: transactions_raw
     const { error: updateError } = await supabase
       .from('transactions_raw')
       .update({
         approved_by: approvedBy,
         approved_at: new Date().toISOString(),
-        status: 'reconciled'
+        status: 'reconciled',
       })
       .eq('id', transactionId);
 
@@ -101,7 +102,6 @@ app.post('/approve/:id', async (req, res) => {
       return res.status(500).json({ error: 'Failed to approve transaction.' });
     }
 
-    // ✅ Insert into audit log
     await supabase.from('reconciliation_audit_log').insert([{
       transaction_id: transactionId,
       client_id: req.body.client_id || null,
@@ -116,21 +116,18 @@ app.post('/approve/:id', async (req, res) => {
         transaction_id: transactionId,
         client_id: req.body.client_id,
         confidence_score: req.body.confidence_score,
-        approved_by: approvedBy
+        approved_by: approvedBy,
       });
     } catch (webhookErr) {
       console.error('Webhook to Make failed:', webhookErr.message);
-
-      // ✅ Log failure in Supabase
       await supabase.from('webhook_failures').insert([{
         transaction_id: transactionId,
         client_id: req.body.client_id,
         approved_by: approvedBy,
         failure_reason: webhookErr.message,
-        attempted_at: new Date().toISOString()
+        attempted_at: new Date().toISOString(),
       }]);
     }
-
 
     res.json({ message: 'Transaction approved and webhook triggered.' });
 
@@ -138,6 +135,11 @@ app.post('/approve/:id', async (req, res) => {
     console.error('Approval or webhook failed:', err.message);
     res.status(500).json({ error: 'Internal server error.' });
   }
+});
+
+// ✅ 404 fallback
+app.use((req, res) => {
+  res.status(404).send('Not Found');
 });
 
 const PORT = process.env.PORT || 8080;

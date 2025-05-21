@@ -4,7 +4,6 @@
   <meta charset="UTF-8" />
   <title>Reconciliation Rules</title>
   <link rel="stylesheet" href="style.css" />
-
 </head>
 <body>
   <div class="navbar">
@@ -20,6 +19,7 @@
   </div>
 
   <h1>Reconciliation Rules</h1>
+
   <table id="rulesTable">
     <thead>
       <tr>
@@ -34,31 +34,49 @@
   </table>
 
   <script>
-    async function loadRules() {
-      const res = await fetch('/rules');
-      const data = (await res.json()).data || [];
-      const tbody = document.querySelector('#rulesTable tbody');
-      tbody.innerHTML = '';
+    const tokenCookie = document.cookie.split('; ').find(row => row.startsWith('authorization='));
 
-      data.forEach(rule => {
-        const row = document.createElement('tr');
-        row.innerHTML = `
-          <td>${rule.rule_name}</td>
-          <td>${rule.vendor_keyword}</td>
-          <td>£${rule.amount_range.min} - £${rule.amount_range.max}</td>
-          <td>${rule.account_code}</td>
-          <td>${rule.vat_code}</td>
-        `;
-        tbody.appendChild(row);
-      });
+    if (!tokenCookie) {
+      // redirect to login if token missing
+      window.location.href = `/login.html?redirect=rules`;
+    } else {
+      const token = tokenCookie.split('=')[1];
+
+      async function loadRules() {
+        const res = await fetch('/rules', {
+          headers: { 'Authorization': token }
+        });
+
+        if (!res.ok) {
+          alert("Failed to fetch rules. Your session may have expired.");
+          window.location.href = `/login.html?redirect=rules`;
+          return;
+        }
+
+        const data = (await res.json()).data || [];
+        const tbody = document.querySelector('#rulesTable tbody');
+        tbody.innerHTML = '';
+
+        data.forEach(rule => {
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td>${rule.rule_name}</td>
+            <td>${rule.vendor_keyword}</td>
+            <td>£${rule.amount_range.min} - £${rule.amount_range.max}</td>
+            <td>${rule.account_code}</td>
+            <td>${rule.vat_code}</td>
+          `;
+          tbody.appendChild(row);
+        });
+      }
+
+      function logout() {
+        document.cookie = 'authorization=; Max-Age=0';
+        window.location.href = '/';
+      }
+
+      loadRules();
     }
-
-    function logout() {
-      document.cookie = 'authorization=; Max-Age=0';
-      window.location.href = '/';
-    }
-
-    loadRules();
   </script>
 </body>
 </html>
