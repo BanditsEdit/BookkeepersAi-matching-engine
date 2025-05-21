@@ -5,33 +5,61 @@
   <title>Login – Client Portal</title>
   <link rel="stylesheet" href="style.css" />
   <style>
- 
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: linear-gradient(to bottom, #f3f4f6, #0f172a);
+      color: #111827;
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .login-wrapper {
+      background-color: white;
+      padding: 40px;
+      border-radius: 10px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+      max-width: 400px;
+      width: 100%;
+    }
+
     .login-wrapper h2 {
       text-align: center;
       margin-bottom: 20px;
-      color: #111827;
+      color: #1f2937;
     }
 
-    .login-wrapper input {
-      width: 93%;
-      padding: 12px;
-      margin-bottom: 16px;
-      border-radius: 6px;
-      border: 1px solid #ccc;
-    }
-
-    .login-wrapper button {
+    .styled-input {
       width: 100%;
+      padding: 10px 14px;
+      border: 1px solid #ccc;
+      border-radius: 8px;
+      font-size: 14px;
+      margin-bottom: 16px;
+      outline: none;
+      transition: border 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .styled-input:focus {
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.3);
+    }
+
+    button {
+      width: 100%;
+      padding: 12px;
+      border: none;
       background-color: #1f2937;
       color: white;
-      border: none;
-      padding: 12px;
-      border-radius: 6px;
       font-weight: bold;
+      border-radius: 8px;
       cursor: pointer;
     }
 
-    .login-wrapper button:hover {
+    button:hover {
       background-color: #374151;
     }
 
@@ -45,31 +73,29 @@
 </head>
 <body>
   <div class="login-wrapper">
-    <h2>Enter Your Access Token</h2>
+    <h2>Login with Access Token</h2>
     <div id="error" class="error-message"></div>
-    <input type="text" id="accessToken" placeholder="Paste your token here" />
+    <input type="text" id="token" placeholder="Paste your token here" class="styled-input" />
     <button onclick="login()">Login</button>
   </div>
 
   <script>
     async function login() {
-      const token = document.getElementById('accessToken').value;
-
+      const token = document.getElementById('token').value;
       if (!token) {
-        document.getElementById('error').innerText = "Please enter your token.";
+        document.getElementById('error').innerText = "Access token is required.";
         return;
       }
 
-      const res = await fetch('/rules', {
+      const res = await fetch('/pending-reviews', {
+        method: 'GET',
         headers: { 'Authorization': token }
       });
 
       if (res.status === 200) {
-        // Save the token in a cookie
         document.cookie = `authorization=${token}; path=/`;
-
-        const params = new URLSearchParams(window.location.search);
-        const redirect = params.get('redirect') || 'pending-reviews';
+        const urlParams = new URLSearchParams(window.location.search);
+        const redirect = urlParams.get('redirect') || 'pending-reviews';
         window.location.href = `${redirect}.html`;
       } else {
         document.getElementById('error').innerText = "Invalid or expired token.";
