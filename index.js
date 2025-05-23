@@ -110,6 +110,52 @@ app.get('/rules', authWithSupabase, async (req, res) => {
   res.json({ data });
 });
 
+app.post('/rules', authWithSupabase, async (req, res) => {
+  const rule = req.body;
+
+  // Validate required fields
+  if (!rule.rule_name || !rule.vendor_keyword || !rule.amount_range || !rule.account_code || !rule.vat_code) {
+    return res.status(400).json({ message: "Missing required fields." });
+  }
+
+  // Add client ID from authenticated user
+  const newRule = {
+    ...rule,
+    client_id: req.client.client_id,
+    is_active: true
+  };
+
+  // Insert rule into Supabase
+  const { error } = await supabase
+    .from('reconciliation_rules')
+    .insert([newRule]);
+
+  if (error) {
+    console.error('Error inserting rule:', error);
+    return res.status(500).json({ message: 'Database insert failed.' });
+  }
+
+  res.status(200).json({ message: 'Rule created successfully.' });
+});
+
+app.put('/rules/:id', authWithSupabase, async (req, res) => {
+  const ruleId = req.params.id;
+  const updates = req.body;
+
+  const { error } = await supabase
+    .from('reconciliation_rules')
+    .update(updates)
+    .eq('id', ruleId)
+    .eq('client_id', req.client.client_id); // Prevent cross-client edits
+
+  if (error) {
+    console.error('Failed to update rule:', error);
+    return res.status(500).json({ message: 'Update failed.' });
+  }
+
+  res.json({ message: 'Rule updated successfully.' });
+});
+
 // 🔁 Match Engine
 app.post('/match', async (req, res) => {
   try {
@@ -120,6 +166,43 @@ app.post('/match', async (req, res) => {
     console.error('Matching failed:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
+});
+
+// ✅ Update rule
+app.put('/rules/:id', authWithSupabase, async (req, res) => {
+  const ruleId = req.params.id;
+  const updates = req.body;
+
+  const { error } = await supabase
+    .from('reconciliation_rules')
+    .update(updates)
+    .eq('id', ruleId)
+    .eq('client_id', req.client.client_id);
+
+  if (error) {
+    console.error('Failed to update rule:', error);
+    return res.status(500).json({ message: 'Update failed.' });
+  }
+
+  res.json({ message: 'Rule updated successfully.' });
+});
+
+// ✅ Delete rule
+app.delete('/rules/:id', authWithSupabase, async (req, res) => {
+  const ruleId = req.params.id;
+
+  const { error } = await supabase
+    .from('reconciliation_rules')
+    .delete()
+    .eq('id', ruleId)
+    .eq('client_id', req.client.client_id); // Security: only delete own rules
+
+  if (error) {
+    console.error('Failed to delete rule:', error);
+    return res.status(500).json({ message: 'Delete failed.' });
+  }
+
+  res.json({ message: 'Rule deleted successfully.' });
 });
 
 // ✅ Approve + Log + Webhook

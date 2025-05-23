@@ -34,6 +34,25 @@
     <tbody></tbody>
   </table>
 
+  <h2>Add New Rule</h2>
+  <form id="ruleForm">
+    <input type="text" name="rule_name" placeholder="Rule Name" required />
+    <input type="text" name="vendor_keyword" placeholder="Vendor Keyword" required />
+    <input type="number" step="0.01" name="min_amount" placeholder="Min Amount" required />
+    <input type="number" step="0.01" name="max_amount" placeholder="Max Amount" required />
+    <select name="account_code" required>
+      <option value="">Select Account Code</option>
+      <option value="600">600 - Software Subscriptions</option>
+      <option value="610">610 - Marketing Expenses</option>
+      <option value="620">620 - Professional Services</option>
+      <option value="700">700 - Advertising & Promotion</option>
+      <option value="800">800 - Miscellaneous</option>
+    </select>
+    <input type="text" name="vat_code" placeholder="VAT Code" required />
+    <button type="submit">Add Rule</button>
+  </form>
+
+  
   <script>
     const tokenCookie = document.cookie.split('; ').find(row => row.startsWith('authorization='));
 
@@ -66,6 +85,9 @@
             <td>£${rule.amount_range.min} - £${rule.amount_range.max}</td>
             <td>${rule.account_code}</td>
             <td>${rule.vat_code}</td>
+            <td>
+              <button onclick="deleteRule('${rule.id}')">Delete</button>
+            </td>
           `;
           tbody.appendChild(row);
         });
@@ -76,7 +98,44 @@
         window.location.href = 'https://bookkeppersai.banditsaimarketing.com';
       }
 
-      loadRules();
+      // 👇 ADD THIS FORM LOGIC HERE
+      document.getElementById('ruleForm').addEventListener('submit', async function(e) {
+        e.preventDefault();
+
+        const form = e.target;
+
+        const payload = {
+          rule_name: form.rule_name.value,
+          vendor_keyword: form.vendor_keyword.value,
+          amount_range: {
+            min: parseFloat(form.min_amount.value),
+            max: parseFloat(form.max_amount.value)
+          },
+          account_code: form.account_code.value,
+          vat_code: form.vat_code.value,
+          is_active: true
+        };
+
+        const res = await fetch('/rules', {
+          method: 'POST',
+          headers: {
+            'Authorization': token,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(payload)
+        });
+
+        if (res.ok) {
+          form.reset();
+          loadRules(); // refresh table
+          alert("Rule added successfully!");
+        } else {
+          const error = await res.json();
+          alert("Failed to add rule: " + (error.message || 'Unknown error'));
+        }
+      });
+
+      loadRules(); // still call this after everything else is defined
     }
   </script>
 </body>
