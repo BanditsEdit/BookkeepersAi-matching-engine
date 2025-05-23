@@ -18,14 +18,25 @@ async function fetchRulesForClient(clientId) {
 
 // Matching logic based on rule and transaction
 function calculateConfidence(transaction, rule) {
-  const amount = transaction.amount;
-  const description = transaction.description.toLowerCase();
+  const amount = parseFloat(transaction.amount);
+  const description = transaction.description?.toLowerCase() || '';
   const keyword = rule.vendor_keyword?.toLowerCase() || '';
-  const min = rule.amount_range?.min ?? 0;
-  const max = rule.amount_range?.max ?? 999999;
+
+  const min = parseFloat(rule.amount_range?.min ?? 0);
+  const max = parseFloat(rule.amount_range?.max ?? 999999);
 
   const amountMatch = amount >= min && amount <= max;
   const descMatch = description.includes(keyword);
+
+  console.log('🧠 MATCH CHECK →', {
+    amount,
+    min,
+    max,
+    description,
+    keyword,
+    amountMatch,
+    descMatch
+  });
 
   let confidence = 0;
   if (amountMatch) confidence += 50;
@@ -33,6 +44,7 @@ function calculateConfidence(transaction, rule) {
 
   return confidence;
 }
+
 
 // Main match function
 async function matchTransaction(transaction) {
