@@ -58,7 +58,7 @@
 
     if (!tokenCookie) {
       // redirect to login if token missing
-      window.location.href = `/login.html?redirect=rules`;
+      window.location.href = /login.html?redirect=rules;
     } else {
       const token = tokenCookie.split('=')[1];
 
@@ -69,17 +69,75 @@
 
         if (!res.ok) {
           alert("Failed to fetch rules. Your session may have expired.");
-          window.location.href = `/login.html?redirect=rules`;
+          window.location.href = /login.html?redirect=rules;
           return;
         }
 
+        let clientId = null;
+
+        async function getClientInfo() {
+          const res = await fetch('/me', {
+            headers: { 'Authorization': token }
+          });
+
+          if (!res.ok) {
+            alert("Session expired or access denied.");
+            window.location.href = /login.html?redirect=rules;
+            return;
+          }
+
+          const data = await res.json();
+          clientId = data.client_id;
+        }
+
+        document.getElementById('ruleForm').addEventListener('submit', async (e) => {
+          e.preventDefault();
+
+          // Ensure client info has been fetched
+          if (!clientId) await getClientInfo();
+
+          const formData = new FormData(e.target);
+
+          const newRule = {
+            client_id: clientId,
+            rule_name: formData.get('rule_name'),
+            vendor_keyword: formData.get('vendor_keyword'),
+            amount_range: {
+              min: parseFloat(formData.get('min_amount')),
+              max: parseFloat(formData.get('max_amount'))
+            },
+            account_code: formData.get('account_code'),
+            vat_code: formData.get('vat_code'),
+            is_active: true
+          };
+
+          const res = await fetch('/rules', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': token
+            },
+            body: JSON.stringify(newRule)
+          });
+
+          if (!res.ok) {
+            alert('Failed to create rule.');
+            return;
+          }
+
+          alert('Rule added!');
+          e.target.reset();
+          loadRules();
+        });
+
+        
         const data = (await res.json()).data || [];
         const tbody = document.querySelector('#rulesTable tbody');
         tbody.innerHTML = '';
 
         data.forEach(rule => {
           const row = document.createElement('tr');
-          row.innerHTML = `
+          row.innerHTML = 
             <td>${rule.rule_name}</td>
             <td>${rule.vendor_keyword}</td>
             <td>£${rule.amount_range.min} - £${rule.amount_range.max}</td>
@@ -88,7 +146,7 @@
             <td>
               <button onclick="deleteRule('${rule.id}')">Delete</button>
             </td>
-          `;
+          ;
           tbody.appendChild(row);
         });
       }
@@ -102,9 +160,12 @@
       document.getElementById('ruleForm').addEventListener('submit', async function(e) {
         e.preventDefault();
 
+        await getClientInfo(); // ⚠️ Important
+
         const form = e.target;
 
         const payload = {
+          client_id: clientId,
           rule_name: form.rule_name.value,
           vendor_keyword: form.vendor_keyword.value,
           amount_range: {
@@ -123,6 +184,17 @@
             'Content-Type': 'application/json'
           },
           body: JSON.stringify(payload)
+        });
+
+        let clientId = null;
+        const token = tokenCookie.split('=')[1];
+
+        async function getClientInfo() { ... }
+
+       
+
+        document.getElementById('ruleForm').addEventListener('submit', async function(e) {
+          ...
         });
 
         if (res.ok) {

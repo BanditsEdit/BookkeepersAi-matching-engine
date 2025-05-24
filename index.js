@@ -8,9 +8,10 @@ const app = express();
 app.use(express.static(path.join(__dirname, 'public')));
 app.use(express.json());
 
-/* 🔐 Middleware: Auth from Supabase token */
+// ✅ Supabase token-based auth middleware
 const authWithSupabase = async (req, res, next) => {
   const token = req.headers['authorization'];
+
   if (!token) return res.status(401).send('No token provided.');
 
   const { data, error } = await supabase
@@ -24,15 +25,18 @@ const authWithSupabase = async (req, res, next) => {
   const now = new Date();
 
   if (data.status !== 'active') return res.status(403).send('Access revoked.');
+
   if (data.expires_at && new Date(data.expires_at) < now) {
-    await supabase.from('client_access')
+    await supabase
+      .from('client_access')
       .update({ status: 'expired' })
       .eq('access_token', token);
     return res.status(403).send('Token expired.');
   }
 
   if (data.reminder_count >= 3) {
-    await supabase.from('client_access')
+    await supabase
+      .from('client_access')
       .update({ status: 'revoked' })
       .eq('access_token', token);
     return res.status(403).send('Access revoked after 3 missed reminders.');
@@ -42,22 +46,23 @@ const authWithSupabase = async (req, res, next) => {
   next();
 };
 
-/* 🏠 Public Route */
+// ✅ Get current client details from token
+app.get('/me', authWithSupabase, async (req, res) => {
+  try {
+    const client = req.client;
+    res.json({ client_id: client.client_id, email: client.email || null });
+  } catch (err) {
+    console.error('Failed to return client info:', err);
+    res.status(500).json({ error: 'Failed to fetch client info' });
+  }
+});
+
+// 🏠 Public login page
 app.get('/', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'login.html'));
 });
 
-/* ✅ GET authenticated client */
-app.get('/me', authWithSupabase, async (req, res) => {
-  res.json({ client_id: req.client.client_id });
-});
-
-/* ✅ GET health check */
-app.get('/health', (_, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
-
-/* 📥 GET pending transactions for review */
+// ✅ Per-client filtered routes
 app.get('/pending-reviews', authWithSupabase, async (req, res) => {
   try {
     const { data, error } = await supabase
@@ -75,7 +80,6 @@ app.get('/pending-reviews', authWithSupabase, async (req, res) => {
   }
 });
 
-/* 📚 GET audit log */
 app.get('/audit-log', authWithSupabase, async (req, res) => {
   const { data, error } = await supabase
     .from('reconciliation_audit_log')
@@ -87,7 +91,6 @@ app.get('/audit-log', authWithSupabase, async (req, res) => {
   res.json({ data });
 });
 
-/* ⚠️ GET exceptions */
 app.get('/exceptions', authWithSupabase, async (req, res) => {
   try {
     const { data, error } = await supabase
@@ -108,7 +111,6 @@ app.get('/exceptions', authWithSupabase, async (req, res) => {
   }
 });
 
-/* 📜 GET and POST rules */
 app.get('/rules', authWithSupabase, async (req, res) => {
   const { data, error } = await supabase
     .from('reconciliation_rules')
@@ -122,17 +124,19 @@ app.get('/rules', authWithSupabase, async (req, res) => {
 app.post('/rules', authWithSupabase, async (req, res) => {
   const rule = req.body;
 
+  // Validate required fields
   if (!rule.rule_name || !rule.vendor_keyword || !rule.amount_range || !rule.account_code || !rule.vat_code) {
     return res.status(400).json({ message: "Missing required fields." });
   }
 
+  // Add client ID from authenticated user
   const newRule = {
     ...rule,
     client_id: req.client.client_id,
-    is_active: true,
-    created_at: new Date().toISOString()
+    is_active: true
   };
 
+  // Insert rule into Supabase
   const { error } = await supabase
     .from('reconciliation_rules')
     .insert([newRule]);
@@ -145,19 +149,15 @@ app.post('/rules', authWithSupabase, async (req, res) => {
   res.status(200).json({ message: 'Rule created successfully.' });
 });
 
-/* ✏️ UPDATE rule */
 app.put('/rules/:id', authWithSupabase, async (req, res) => {
   const ruleId = req.params.id;
   const updates = req.body;
 
   const { error } = await supabase
     .from('reconciliation_rules')
-    .update({
-      ...updates,
-      updated_at: new Date().toISOString()
-    })
+    .update(updates)
     .eq('id', ruleId)
-    .eq('client_id', req.client.client_id);
+    .eq('client_id', req.client.client_id); // Prevent cross-client edits
 
   if (error) {
     console.error('Failed to update rule:', error);
@@ -167,25 +167,7 @@ app.put('/rules/:id', authWithSupabase, async (req, res) => {
   res.json({ message: 'Rule updated successfully.' });
 });
 
-/* 🗑 DELETE rule */
-app.delete('/rules/:id', authWithSupabase, async (req, res) => {
-  const ruleId = req.params.id;
-
-  const { error } = await supabase
-    .from('reconciliation_rules')
-    .delete()
-    .eq('id', ruleId)
-    .eq('client_id', req.client.client_id);
-
-  if (error) {
-    console.error('Failed to delete rule:', error);
-    return res.status(500).json({ message: 'Delete failed.' });
-  }
-
-  res.json({ message: 'Rule deleted successfully.' });
-});
-
-/* 🤖 Match Engine */
+// 🔁 Match Engine
 app.post('/match', async (req, res) => {
   try {
     const transaction = req.body;
@@ -197,7 +179,44 @@ app.post('/match', async (req, res) => {
   }
 });
 
-/* ✅ Manual Approval + Audit Log + Webhook */
+// ✅ Update rule
+app.put('/rules/:id', authWithSupabase, async (req, res) => {
+  const ruleId = req.params.id;
+  const updates = req.body;
+
+  const { error } = await supabase
+    .from('reconciliation_rules')
+    .update(updates)
+    .eq('id', ruleId)
+    .eq('client_id', req.client.client_id);
+
+  if (error) {
+    console.error('Failed to update rule:', error);
+    return res.status(500).json({ message: 'Update failed.' });
+  }
+
+  res.json({ message: 'Rule updated successfully.' });
+});
+
+// ✅ Delete rule
+app.delete('/rules/:id', authWithSupabase, async (req, res) => {
+  const ruleId = req.params.id;
+
+  const { error } = await supabase
+    .from('reconciliation_rules')
+    .delete()
+    .eq('id', ruleId)
+    .eq('client_id', req.client.client_id); // Security: only delete own rules
+
+  if (error) {
+    console.error('Failed to delete rule:', error);
+    return res.status(500).json({ message: 'Delete failed.' });
+  }
+
+  res.json({ message: 'Rule deleted successfully.' });
+});
+
+// ✅ Approve + Log + Webhook
 app.post('/approve/:id', authWithSupabase, async (req, res) => {
   const transactionId = req.params.id;
   const approvedBy = req.body.approved_by || 'admin@venn.com';
@@ -209,10 +228,9 @@ app.post('/approve/:id', authWithSupabase, async (req, res) => {
         approved_by: approvedBy,
         approved_at: new Date().toISOString(),
         status: 'reconciled',
-        updated_at: new Date().toISOString()
       })
       .eq('id', transactionId)
-      .eq('client_id', req.client.client_id);
+      .eq('client_id', req.client.client_id); // 👈 prevent cross-client approvals
 
     if (updateError) {
       return res.status(500).json({ error: 'Failed to approve transaction.' });
@@ -225,7 +243,6 @@ app.post('/approve/:id', authWithSupabase, async (req, res) => {
       confidence_score: req.body.confidence_score || null,
       reconciled: true,
       reconciled_at: new Date().toISOString(),
-      created_at: new Date().toISOString()
     }]);
 
     try {
@@ -242,7 +259,7 @@ app.post('/approve/:id', authWithSupabase, async (req, res) => {
         client_id: req.client.client_id,
         approved_by: approvedBy,
         failure_reason: webhookErr.message,
-        attempted_at: new Date().toISOString()
+        attempted_at: new Date().toISOString(),
       }]);
     }
 
@@ -254,13 +271,12 @@ app.post('/approve/:id', authWithSupabase, async (req, res) => {
   }
 });
 
-/* 🔚 404 Fallback */
+// Fallback
 app.use((req, res) => {
   res.status(404).send('Not Found');
 });
 
-/* 🚀 Start Server */
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
-  console.log(`Match Engine live on port ${PORT}`);
+  console.log(Match Engine live on port ${PORT});
 });

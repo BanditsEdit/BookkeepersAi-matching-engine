@@ -36,27 +36,11 @@
 
   <script>
     const tokenCookie = document.cookie.split('; ').find(row => row.startsWith('authorization='));
-    let clientId = null;
 
     if (!tokenCookie) {
       window.location.href = `/login.html?redirect=audit`;
     } else {
       const token = tokenCookie.split('=')[1];
-
-      async function getClientInfo() {
-        const res = await fetch('/me', {
-          headers: { 'Authorization': token }
-        });
-
-        if (!res.ok) {
-          alert("Session expired or access denied.");
-          window.location.href = `/login.html?redirect=audit`;
-          return;
-        }
-
-        const data = await res.json();
-        clientId = data.client_id;
-      }
 
       async function loadAuditLog() {
         const res = await fetch('/audit-log', {
@@ -76,11 +60,11 @@
         data.forEach(item => {
           const row = document.createElement('tr');
           row.innerHTML = `
-            <td>${item.transaction_id || '-'}</td>
+            <td>${item.transaction_id}</td>
             <td>${item.client_id || '-'}</td>
-            <td>${item.action_type || '-'}</td>
-            <td>${item.confidence_score ?? '—'}</td>
-            <td>${item.reconciled_at ? new Date(item.reconciled_at).toLocaleString() : '—'}</td>
+            <td>${item.action_type}</td>
+            <td>${item.confidence_score || '—'}</td>
+            <td>${new Date(item.reconciled_at).toLocaleString()}</td>
           `;
           tbody.appendChild(row);
         });
@@ -91,11 +75,7 @@
         window.location.href = 'https://bookkeppersai.banditsaimarketing.com';
       }
 
-      // 🔁 Execute
-      (async () => {
-        await getClientInfo();
-        await loadAuditLog();
-      })();
+      loadAuditLog();
     }
   </script>
 </body>
