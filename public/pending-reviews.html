@@ -1,121 +1,85 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <title>Pending Approvals</title>
-  <link rel="stylesheet" href="style.css" />
-</head>
-<body>
-  <div class="navbar">
-    <div class="nav-left">
-      <span class="logo">Client Portal</span>
-      <a href="pending-reviews.html">Dashboard</a>
-      <a href="audit.html">Audit Log</a>
-      <a href="rules.html">Rules</a>
-      <a href="exceptions.html">Exceptions</a>
-    </div>
-    <div class="nav-right">
-      <button onclick="logout()">Logout</button>
-    </div>
-  </div>
+<script>
+  const tokenCookie = document.cookie.split('; ').find(row => row.startsWith('authorization='));
+  let clientId = null;
 
-  <h1>Pending Approvals</h1>
+  if (!tokenCookie) {
+    window.location.href = `/login.html?redirect=pending-reviews`;
+  } else {
+    const token = tokenCookie.split('=')[1];
 
-  <table id="transactionsTable">
-    <thead>
-      <tr>
-        <th>Description</th>
-        <th>Amount</th>
-        <th>Confidence</th>
-        <th>Action</th>
-      </tr>
-    </thead>
-    <tbody></tbody>
-  </table>
+    async function getClientInfo() {
+      const res = await fetch('/me', {
+        headers: { 'Authorization': token }
+      });
 
-  <script>
-    const tokenCookie = document.cookie.split('; ').find(row => row.startsWith('authorization='));
-
-    if (!tokenCookie) {
-      window.location.href = `/login.html?redirect=pending-reviews`;
-    } else {
-      const token = tokenCookie.split('=')[1];
-
-      async function loadTransactions() {
-        const res = await fetch('/pending-reviews', {
-          headers: { 'Authorization': token }
-        });
-
-        if (!res.ok) {
-          alert("Session expired or access denied.");
-          window.location.href = `/login.html?redirect=pending-reviews`;
-          return;
-        }
-
-        let clientId = null;
-
-        async function getClientInfo() {
-          const res = await fetch('/me', {
-            headers: { 'Authorization': token }
-          });
-
-          if (!res.ok) {
-            alert("Session expired.");
-            window.location.href = `/login.html?redirect=rules`;
-            return;
-          }
-          
-          getClientInfo(); // 👈 Call it so clientId gets populated
-
-          const data = await res.json();
-          clientId = data.client_id;
-        }
-
-        const data = await res.json();
-        const tbody = document.querySelector('#transactionsTable tbody');
-        tbody.innerHTML = '';
-
-        data.forEach(tx => {
-          const row = document.createElement('tr');
-          row.innerHTML = `
-            <td>${tx.description}</td>
-            <td>£${tx.amount}</td>
-            <td>${tx.confidence_score || 'N/A'}%</td>
-            <td>
-              <button class="approve-btn" onclick="approve('${tx.id}', '${tx.client_id}', ${tx.confidence_score})">
-                Approve
-              </button>
-            </td>
-          `;
-          tbody.appendChild(row);
-        });
+      if (!res.ok) {
+        alert("Session expired.");
+        window.location.href = `/login.html?redirect=pending-reviews`;
+        return;
       }
 
-      async function approve(id, client_id, confidence_score) {
-        await fetch(`/approve/${id}`, {
-          method: 'POST',
-          headers: {
-            'Authorization': token,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            approved_by: 'admin@venn.com',
-            client_id,
-            confidence_score
-          })
-        });
-
-        alert('Transaction approved.');
-        loadTransactions();
-      }
-
-      function logout() {
-        document.cookie = 'authorization=; Max-Age=0';
-        window.location.href = 'https://bookkeppersai.banditsaimarketing.com';
-      }
-
-      loadTransactions();
+      const data = await res.json();
+      clientId = data.client_id;
     }
-  </script>
-</body>
-</html>
+
+    async function loadTransactions() {
+      const res = await fetch('/pending-reviews', {
+        headers: { 'Authorization': token }
+      });
+
+      if (!res.ok) {
+        alert("Session expired or access denied.");
+        window.location.href = `/login.html?redirect=pending-reviews`;
+        return;
+      }
+
+      const data = await res.json();
+      const tbody = document.querySelector('#transactionsTable tbody');
+      tbody.innerHTML = '';
+
+      data.forEach(tx => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>${tx.description}</td>
+          <td>£${tx.amount}</td>
+          <td>${tx.confidence_score || 'N/A'}%</td>
+          <td>
+            <button class="approve-btn" onclick="approve('${tx.id}', ${tx.confidence_score})">
+              Approve
+            </button>
+          </td>
+        `;
+        tbody.appendChild(row);
+      });
+    }
+
+    async function approve(id, confidence_score) {
+      await fetch(`/approve/${id}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': token,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          approved_by: 'admin@venn.com',
+          client_id: clientId,
+          confidence_score
+        })
+      });
+
+      alert('Transaction approved.');
+      await loadTransactions();
+    }
+
+    function logout() {
+      document.cookie = 'authorization=; Max-Age=0';
+      window.location.href = 'https://bookkeppersai.banditsaimarketing.com';
+    }
+
+    // 🔁 Run the main sequence
+    (async () => {
+      await getClientInfo();
+      await loadTransactions();
+    })();
+  }
+</script>

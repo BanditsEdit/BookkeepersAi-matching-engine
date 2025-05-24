@@ -7,7 +7,7 @@
   } else {
     const token = tokenCookie.split('=')[1];
 
-    // 🔑 Get client info BEFORE anything else
+    // 🔑 Get client info first
     async function getClientInfo() {
       const res = await fetch('/me', {
         headers: { 'Authorization': token }
@@ -23,15 +23,14 @@
       clientId = data.client_id;
     }
 
-    // 📥 Load Rules Table
+    // 📥 Load all rules for this client
     async function loadRules() {
       const res = await fetch('/rules', {
         headers: { 'Authorization': token }
       });
 
       if (!res.ok) {
-        alert("Failed to fetch rules. Your session may have expired.");
-        window.location.href = `/login.html?redirect=rules`;
+        alert("Failed to fetch rules.");
         return;
       }
 
@@ -53,25 +52,25 @@
       });
     }
 
-    // 🔐 Logout
+    // 🚪 Logout function
     function logout() {
       document.cookie = 'authorization=; Max-Age=0';
       window.location.href = 'https://bookkeppersai.banditsaimarketing.com';
     }
 
-    // 🧠 MAIN FLOW
+    // 🚀 Main App Logic
     (async () => {
-      await getClientInfo(); // 👈 Needed before submit logic
-      await loadRules();     // 👈 Only load once client is verified
+      await getClientInfo(); // Get client_id securely
+      await loadRules();     // Load rules only after auth
 
-      // 📝 FORM SUBMIT
+      // 📝 Form submission handler
       document.getElementById('ruleForm').addEventListener('submit', async function(e) {
         e.preventDefault();
 
         const form = e.target;
 
         const payload = {
-          client_id: clientId, // ✅ Comes from outer scope
+          client_id: clientId,
           rule_name: form.rule_name.value,
           vendor_keyword: form.vendor_keyword.value,
           amount_range: {
@@ -94,13 +93,13 @@
 
         if (res.ok) {
           form.reset();
-          await loadRules(); // Refresh rules table
+          await loadRules();
           alert("Rule added successfully!");
         } else {
           const error = await res.json();
           alert("Failed to add rule: " + (error.message || 'Unknown error'));
         }
       });
-    })(); // 👈 Immediately invoked async wrapper
+    })();
   }
 </script>
