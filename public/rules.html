@@ -1,110 +1,77 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <title>Reconciliation Rules</title>
-  <link rel="stylesheet" href="style.css" />
-</head>
-<body>
-  <div class="navbar">
-    <div class="nav-left">
-      <span class="logo">Client Portal</span>
-      <a href="pending-reviews.html">Dashboard</a>
-      <a href="audit.html">Audit Log</a>
-      <a href="rules.html">Rules</a>
-      <a href="exceptions.html">Exceptions</a>
-    </div>
-    <div class="nav-right">
-      <button onclick="logout()">Logout</button>
-    </div>
-  </div>
+<script>
+  const tokenCookie = document.cookie.split('; ').find(row => row.startsWith('authorization='));
+  let clientId = null;
 
-  <h1>Reconciliation Rules</h1>
+  if (!tokenCookie) {
+    window.location.href = `/login.html?redirect=rules`;
+  } else {
+    const token = tokenCookie.split('=')[1];
 
-  <table id="rulesTable">
-    <thead>
-      <tr>
-        <th>Rule Name</th>
-        <th>Keyword</th>
-        <th>Amount Range</th>
-        <th>Account Code</th>
-        <th>VAT Code</th>
-      </tr>
-    </thead>
-    <tbody></tbody>
-  </table>
+    // 🔑 Get client info BEFORE anything else
+    async function getClientInfo() {
+      const res = await fetch('/me', {
+        headers: { 'Authorization': token }
+      });
 
-  <h2>Add New Rule</h2>
-  <form id="ruleForm">
-    <input type="text" name="rule_name" placeholder="Rule Name" required />
-    <input type="text" name="vendor_keyword" placeholder="Vendor Keyword" required />
-    <input type="number" step="0.01" name="min_amount" placeholder="Min Amount" required />
-    <input type="number" step="0.01" name="max_amount" placeholder="Max Amount" required />
-    <select name="account_code" required>
-      <option value="">Select Account Code</option>
-      <option value="600">600 - Software Subscriptions</option>
-      <option value="610">610 - Marketing Expenses</option>
-      <option value="620">620 - Professional Services</option>
-      <option value="700">700 - Advertising & Promotion</option>
-      <option value="800">800 - Miscellaneous</option>
-    </select>
-    <input type="text" name="vat_code" placeholder="VAT Code" required />
-    <button type="submit">Add Rule</button>
-  </form>
-
-  
-  <script>
-    const tokenCookie = document.cookie.split('; ').find(row => row.startsWith('authorization='));
-
-    if (!tokenCookie) {
-      // redirect to login if token missing
-      window.location.href = `/login.html?redirect=rules`;
-    } else {
-      const token = tokenCookie.split('=')[1];
-
-      async function loadRules() {
-        const res = await fetch('/rules', {
-          headers: { 'Authorization': token }
-        });
-
-        if (!res.ok) {
-          alert("Failed to fetch rules. Your session may have expired.");
-          window.location.href = `/login.html?redirect=rules`;
-          return;
-        }
-
-        const data = (await res.json()).data || [];
-        const tbody = document.querySelector('#rulesTable tbody');
-        tbody.innerHTML = '';
-
-        data.forEach(rule => {
-          const row = document.createElement('tr');
-          row.innerHTML = `
-            <td>${rule.rule_name}</td>
-            <td>${rule.vendor_keyword}</td>
-            <td>£${rule.amount_range.min} - £${rule.amount_range.max}</td>
-            <td>${rule.account_code}</td>
-            <td>${rule.vat_code}</td>
-            <td>
-              <button onclick="deleteRule('${rule.id}')">Delete</button>
-            </td>
-          `;
-          tbody.appendChild(row);
-        });
+      if (!res.ok) {
+        alert("Session expired or access denied.");
+        window.location.href = `/login.html?redirect=rules`;
+        return;
       }
 
-      function logout() {
-        document.cookie = 'authorization=; Max-Age=0';
-        window.location.href = 'https://bookkeppersai.banditsaimarketing.com';
+      const data = await res.json();
+      clientId = data.client_id;
+    }
+
+    // 📥 Load Rules Table
+    async function loadRules() {
+      const res = await fetch('/rules', {
+        headers: { 'Authorization': token }
+      });
+
+      if (!res.ok) {
+        alert("Failed to fetch rules. Your session may have expired.");
+        window.location.href = `/login.html?redirect=rules`;
+        return;
       }
 
-      // 👇 ADD THIS FORM LOGIC HERE
+      const data = (await res.json()).data || [];
+      const tbody = document.querySelector('#rulesTable tbody');
+      tbody.innerHTML = '';
+
+      data.forEach(rule => {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+          <td>${rule.rule_name}</td>
+          <td>${rule.vendor_keyword}</td>
+          <td>£${rule.amount_range.min} - £${rule.amount_range.max}</td>
+          <td>${rule.account_code}</td>
+          <td>${rule.vat_code}</td>
+          <td><button onclick="deleteRule('${rule.id}')">Delete</button></td>
+        `;
+        tbody.appendChild(row);
+      });
+    }
+
+    // 🔐 Logout
+    function logout() {
+      document.cookie = 'authorization=; Max-Age=0';
+      window.location.href = 'https://bookkeppersai.banditsaimarketing.com';
+    }
+
+    // 🧠 MAIN FLOW
+    (async () => {
+      await getClientInfo(); // 👈 Needed before submit logic
+      await loadRules();     // 👈 Only load once client is verified
+
+      // 📝 FORM SUBMIT
       document.getElementById('ruleForm').addEventListener('submit', async function(e) {
         e.preventDefault();
 
         const form = e.target;
 
         const payload = {
+          client_id: clientId, // ✅ Comes from outer scope
           rule_name: form.rule_name.value,
           vendor_keyword: form.vendor_keyword.value,
           amount_range: {
@@ -127,16 +94,13 @@
 
         if (res.ok) {
           form.reset();
-          loadRules(); // refresh table
+          await loadRules(); // Refresh rules table
           alert("Rule added successfully!");
         } else {
           const error = await res.json();
           alert("Failed to add rule: " + (error.message || 'Unknown error'));
         }
       });
-
-      loadRules(); // still call this after everything else is defined
-    }
-  </script>
-</body>
-</html>
+    })(); // 👈 Immediately invoked async wrapper
+  }
+</script>

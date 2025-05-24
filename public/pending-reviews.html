@@ -52,6 +52,25 @@
           return;
         }
 
+        let clientId = null;
+
+        async function getClientInfo() {
+          const res = await fetch('/me', {
+            headers: { 'Authorization': token }
+          });
+
+          if (!res.ok) {
+            alert("Session expired.");
+            window.location.href = `/login.html?redirect=rules`;
+            return;
+          }
+          
+          getClientInfo(); // 👈 Call it so clientId gets populated
+
+          const data = await res.json();
+          clientId = data.client_id;
+        }
+
         const data = await res.json();
         const tbody = document.querySelector('#transactionsTable tbody');
         tbody.innerHTML = '';
