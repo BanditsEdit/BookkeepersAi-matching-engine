@@ -10,8 +10,6 @@ app.use(express.json());
 
 // ✅ Supabase token-based auth middleware
 const authWithSupabase = async (req, res, next) => {
-  console.log("🔐 Incoming token:", req.headers['authorization']);
-
   const token = req.headers['authorization'];
   console.log('🔐 Incoming token:', token);
 
@@ -48,7 +46,6 @@ const authWithSupabase = async (req, res, next) => {
   }
 
   if (data.reminder_count >= 3) {
-    console.warn('📛 Reminder count limit hit for client:', data.client_id)
     await supabase
       .from('client_access')
       .update({ status: 'revoked' })
@@ -63,6 +60,7 @@ const authWithSupabase = async (req, res, next) => {
 // ✅ Get current client details from token
 app.get('/me', authWithSupabase, async (req, res) => {
   try {
+    console.log("✅ /me accessed with client:", req.client);
     const client = req.client;
     res.json({ client_id: client.client_id, email: client.email || null });
   } catch (err) {
@@ -115,6 +113,8 @@ app.get('/exceptions', authWithSupabase, async (req, res) => {
 
     if (error) {
       console.error('Error fetching exceptions:', error);
+      console.log("✅ Client data on /exceptions route:", req.client);
+
       return res.status(500).json({ error: 'Could not fetch exceptions' });
     }
 
@@ -282,6 +282,48 @@ app.post('/approve/:id', authWithSupabase, async (req, res) => {
   } catch (err) {
     console.error('Approval or webhook failed:', err.message);
     res.status(500).json({ error: 'Internal server error.' });
+  }
+});
+
+// ✅ Create new client
+app.post('/bookkeeper_clients', authWithSupabase, async (req, res) => {
+  const { name, email, company } = req.body;
+
+  if (!name || !email || !company) {
+    return res.status(400).json({ error: 'Missing required fields' });
+  }
+
+  try {
+     const { data: existing } = await supabase
+      .from('bookkeeper_clients')
+      .select('*')
+      .eq('client_id', req.client.client_id)
+      .eq('email', email)
+      .maybeSingle();
+
+    if (existing) {
+      return res.status(409).json({ error: 'Client with this email already exists.' });
+    }
+
+    const { data, error } = await supabase
+      .from('bookkeeper_clients') // 👈 your actual table
+      .insert([{
+        name,
+        email,
+        company,
+        client_id: req.client.client_id,
+        created_at: new Date().toISOString()
+      }]);
+
+    if (error) {
+      console.error('❌ Error inserting client:', error);
+      return res.status(500).json({ error: 'Failed to save client' });
+    }
+
+    res.status(201).json({ message: 'Client added successfully', data });
+  } catch (err) {
+    console.error('❌ Unexpected error saving client:', err);
+    res.status(500).json({ error: 'Server error' });
   }
 });
 
