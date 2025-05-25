@@ -286,7 +286,7 @@ app.post('/approve/:id', authWithSupabase, async (req, res) => {
 });
 
 // ✅ Create new client
-app.post('/pending-reviews', authWithSupabase, async (req, res) => {
+app.post('/clients', authWithSupabase, async (req, res) => {
   const { name, email, company } = req.body;
 
   if (!name || !email || !company) {
