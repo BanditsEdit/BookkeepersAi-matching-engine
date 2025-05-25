@@ -64,7 +64,7 @@
               company: formData.get('company')
             };
 
-            const res = await fetch('/bookkeeper_clients', {
+            const res = await fetch('/clients', {
               method: 'POST',
               headers: {
                 'Authorization': token,
