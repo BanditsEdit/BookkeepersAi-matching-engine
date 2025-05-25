@@ -300,13 +300,13 @@ app.post('/bookkeeper-clients', authWithSupabase, async (req, res) => {
   try {
     // 1. Get permission links (safe even if table is empty)
     const { data: permissionLinks, error: linkError } = await supabase
-      .from('bookkeeper_client_permissions')
-      .select('bookkeeper_client_id')
+      .from('bookkeeper_clients_permissions')
+      .select('bookkeeper_clients_id')
       .eq('client_id', bookkeeperId);
 
     if (linkError) throw linkError;
 
-    const clientIds = (permissionLinks || []).map(p => p.bookkeeper_client_id);
+    const clientIds = (permissionLinks || []).map(p => p.bookkeeper_clients_id);
 
     if (clientIds.length > 0) {
       // 2. Lookup clients by ID (safe even if clientIds is empty)
@@ -350,10 +350,10 @@ app.post('/bookkeeper-clients', authWithSupabase, async (req, res) => {
 
     // 5. Insert permission link
     const { error: permissionError } = await supabase
-      .from('bookkeeper_client_permissions')
+      .from('bookkeeper_clients_permissions')
       .insert([{
-        bookkeeper_id: bookkeeperId,
-        bookkeeper_client_id: newClientId
+        client_id: bookkeeperId,
+        bookkeeper_clients_id: newClientId
       }]);
 
     if (permissionError) {
