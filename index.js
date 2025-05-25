@@ -297,7 +297,7 @@ app.post('/bookkeeper-clients', authWithSupabase, async (req, res) => {
 
   let duplicate = false;
 
-  if (bookkeeperId) {    
+  try {
     // 1. Get permission links (safe even if table is empty)
     const { data: permissionLinks, error: linkError } = await supabase
       .from('bookkeeper_client_permissions')
