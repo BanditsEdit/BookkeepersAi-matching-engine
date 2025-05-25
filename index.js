@@ -193,25 +193,6 @@ app.post('/match', async (req, res) => {
   }
 });
 
-// ✅ Update rule
-app.put('/rules/:id', authWithSupabase, async (req, res) => {
-  const ruleId = req.params.id;
-  const updates = req.body;
-
-  const { error } = await supabase
-    .from('reconciliation_rules')
-    .update(updates)
-    .eq('id', ruleId)
-    .eq('client_id', req.client.client_id);
-
-  if (error) {
-    console.error('Failed to update rule:', error);
-    return res.status(500).json({ message: 'Update failed.' });
-  }
-
-  res.json({ message: 'Rule updated successfully.' });
-});
-
 // ✅ Delete rule
 app.delete('/rules/:id', authWithSupabase, async (req, res) => {
   const ruleId = req.params.id;
