@@ -40,18 +40,22 @@
     if (!tokenCookie) {
       window.location.href = `/login.html?redirect=audit`;
     } else {
-      const token = tokenCookie.split('=')[1];
+        const token = tokenCookie.split('=')[1];
 
-      async function loadAuditLog() {
-        const res = await fetch('/audit-log', {
+        fetch('/me', {
           headers: { 'Authorization': token }
-        });
-
-        if (!res.ok) {
-          alert("Access denied or session expired.");
+        }).then(res => {
+          if (!res.ok) {
+            throw new Error('Invalid session');
+          }
+          return res.json();
+        }).then(user => {
+          console.log('Authenticated as:', user.client_id);
+          loadAuditLog(); // Only load after auth confirmed
+        }).catch(err => {
+          alert('Session expired. Please log in again.');
           window.location.href = `/login.html?redirect=audit`;
-          return;
-        }
+        });
 
         const { data } = await res.json();
         const tbody = document.querySelector('#auditTable tbody');

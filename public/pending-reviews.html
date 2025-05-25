@@ -21,6 +21,16 @@
 
   <h1>Pending Approvals</h1>
 
+  <button onclick="toggleClientForm()">Add Client</button>
+  <div id="clientFormWrapper" style="display:none; margin-top:20px;">
+    <form id="clientForm">
+      <input type="text" name="name" placeholder="Client Name" required />
+      <input type="email" name="email" placeholder="Client Email" required />
+      <input type="text" name="company" placeholder="Company Name" required />
+      <button type="submit">Save Client</button>
+    </form>
+  </div>
+
   <table id="transactionsTable">
     <thead>
       <tr>
@@ -34,87 +44,132 @@
   </table>
 
   <script>
-    const tokenCookie = document.cookie.split('; ').find(row => row.startsWith('authorization='));
+    document.addEventListener('DOMContentLoaded', () => {
+      const tokenCookie = document.cookie.split('; ').find(row => row.startsWith('authorization='));
 
-    if (!tokenCookie) {
-      window.location.href = `/login.html?redirect=pending-reviews`;
-    } else {
-      const token = tokenCookie.split('=')[1];
+      if (!tokenCookie) {
+        window.location.href = `/login.html?redirect=pending-reviews`;
+      } else {
+        const token = tokenCookie.split('=')[1];
 
-      async function loadTransactions() {
-        const res = await fetch('/pending-reviews', {
-          headers: { 'Authorization': token }
-        });
+        // ✅ Form handler
+        const form = document.getElementById('clientForm');
+        if (form) {
+          form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const body = {
+              name: formData.get('name'),
+              email: formData.get('email'),
+              company: formData.get('company')
+            };
 
-        req.client = data;
-        next();
-        };
-
-        // ✅ Add this block here:
-        app.get('/me', authWithSupabase, async (req, res) => {
-          try {
-            const client = req.client;
-            res.json({
-              client_id: client.client_id,
-              email: client.email || null
+            const res = await fetch('/bookkeeper_clients', {
+              method: 'POST',
+              headers: {
+                'Authorization': token,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify(body)
             });
-          } catch (err) {
-            console.error('Failed to return client info:', err);
-            res.status(500).json({ error: 'Failed to fetch client info' });
-          }
-        });
 
-        if (!res.ok) {
-          alert("Session expired or access denied.");
-          window.location.href = `/login.html?redirect=pending-reviews`;
-          return;
+            const result = await res.json();
+            if (res.ok) {
+              alert('✅ Client added successfully!');
+              form.reset();
+              toggleClientForm();
+            } else {
+              alert('❌ Failed: ' + result.error);
+            }
+          });
         }
 
-        const data = await res.json();
-        const tbody = document.querySelector('#transactionsTable tbody');
-        tbody.innerHTML = '';
-
-        data.forEach(tx => {
-          const row = document.createElement('tr');
-          row.innerHTML = `
-            <td>${tx.description}</td>
-            <td>£${tx.amount}</td>
-            <td>${tx.confidence_score || 'N/A'}%</td>
-            <td>
-              <button class="approve-btn" onclick="approve('${tx.id}', '${tx.client_id}', ${tx.confidence_score})">
-                Approve
-              </button>
-            </td>
-          `;
-          tbody.appendChild(row);
-        });
-      }
-
-      async function approve(id, client_id, confidence_score) {
-        await fetch(`/approve/${id}`, {
-          method: 'POST',
-          headers: {
-            'Authorization': token,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            approved_by: 'admin@venn.com',
-            client_id,
-            confidence_score
-          })
+        fetch('/me', {
+          headers: { 'Authorization': token }
+        }).then(res => {
+          if (!res.ok) {
+            throw new Error('Invalid or expired token');
+          }
+          return res.json();
+        }).then(user => {
+          console.log('✅ Authenticated as:', user.client_id);
+          loadTransactions(); // ✅ Run only after confirming token is valid
+        }).catch(err => {
+          alert('Session expired. Please log in again.');
+          document.cookie = 'authorization=; Max-Age=0';
+          window.location.href = `${redirect}.html`;
         });
 
-        alert('Transaction approved.');
-        loadTransactions();
+        async function loadTransactions() {
+          const res = await fetch('/pending-reviews', {
+            headers: { 'Authorization': token }
+          });
+
+          if (!res.ok) {
+            alert("Session expired or access denied.");
+            window.location.href = `/login.html?redirect=pending-reviews`;
+            return;
+          }
+
+          const data = await res.json();
+          const tbody = document.querySelector('#transactionsTable tbody');
+          tbody.innerHTML = '';
+
+          data.forEach(tx => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+              <td>${tx.description}</td>
+              <td>£${tx.amount}</td>
+              <td>${tx.confidence_score || 'N/A'}%</td>
+              <td>
+                <button class="approve-btn" onclick="approve('${tx.id}', '${tx.client_id}', ${tx.confidence_score})">
+                  Approve
+                </button>
+              </td>
+            `;
+            tbody.appendChild(row);
+          });
+        }
+
+        async function approve(id, client_id, confidence_score) {
+          await fetch(`/approve/${id}`, {
+            method: 'POST',
+            headers: {
+              'Authorization': token,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              approved_by: 'admin@venn.com',
+              client_id,
+              confidence_score
+            })
+          });
+
+          alert('Transaction approved.');
+          loadTransactions();
+        }
       }
+
+      function toggleClientForm() {
+        const wrapper = document.getElementById('clientFormWrapper');
+        wrapper.style.display = wrapper.style.display === 'none' ? 'block' : 'none';
+      }
+      // ✅ Toggle client form visibility
+      window.toggleClientForm = function () {
+        const wrapper = document.getElementById('clientFormWrapper');
+        wrapper.style.display = wrapper.style.display === 'none' ? 'block' : 'none';
+      };
 
       function logout() {
         document.cookie = 'authorization=; Max-Age=0';
         window.location.href = 'https://bookkeppersai.banditsaimarketing.com';
       }
-
-      loadTransactions();
-    }
+      // ✅ Logout function
+      window.logout = function () {
+        document.cookie = 'authorization=; Max-Age=0';
+        window.location.href = 'https://bookkeppersai.banditsaimarketing.com';
+      };
+    });
   </script>
 </body>
 </html>

@@ -23,11 +23,14 @@
   <table id="exceptionsTable">
     <thead>
       <tr>
-        <th>Transaction ID</th>
-        <th>Description</th>
-        <th>Amount</th>
-        <th>Error Reason</th>
-        <th>Date</th>
+        <th>Client Name</th>
+        <th>Transaction ID</th>        
+        <th>Reason</th>
+        <th>Score</th>
+        <th>Status</th>
+        <th>Resolved By</th>
+        <th>Sent At</th>
+        <th>Created At</th>
       </tr>
     </thead>
     <tbody></tbody>
@@ -35,16 +38,39 @@
 
   <script>
     const tokenCookie = document.cookie.split('; ').find(row => row.startsWith('authorization='));
+    console.log('🍪 Token cookie:', tokenCookie);
 
     if (!tokenCookie) {
+      console.warn('🚫 No token found in cookies');
       window.location.href = `/login.html?redirect=exceptions`;
     } else {
       const token = tokenCookie.split('=')[1];
+      console.log('🔐 Extracted token:', token);
+
+      fetch('/me', {
+        headers: { 'Authorization': token }
+      }).then(res => {
+        if (!res.ok) {
+          throw new Error('Invalid or expired token');
+        }
+        return res.json();
+      }).then(user => {
+        console.log('✅ Authenticated as:', user.client_id);
+        loadExceptions(); // ✅ Run only after confirming token is valid
+      }).catch(err => {
+        alert('Session expired. Please log in again.');
+        document.cookie = 'authorization=; Max-Age=0';
+        window.location.href = `${redirect}.html`;
+      });
+
 
       async function loadExceptions() {
+        console.log('📥 Fetching /exceptions...');
         const res = await fetch('/exceptions', {
           headers: { 'Authorization': token }
         });
+
+        console.log('📡 /exceptions status:', res.status);
 
         if (!res.ok) {
           alert("Failed to load exceptions. Session may have expired.");
@@ -53,17 +79,22 @@
         }
 
         const data = (await res.json()).data || [];
+        console.log('✅ Loaded exceptions:', data);
+
         const tbody = document.querySelector('#exceptionsTable tbody');
         tbody.innerHTML = '';
 
         data.forEach(item => {
           const row = document.createElement('tr');
           row.innerHTML = `
+            <td>${item.client_name}</td>
             <td>${item.transaction_id}</td>
-            <td>${item.description || '-'}</td>
-            <td>£${item.amount || '—'}</td>
-            <td>${item.failure_reason || '—'}</td>
-            <td>${new Date(item.attempted_at).toLocaleString()}</td>
+            <td>${item.reason || '-'}</td>
+            <td>£${item.confidence_score || '—'}</td>
+            <td>${item.is_resolved ? 'Resolved' : 'Pending'}</td>
+            <td>£${item.resolved_by || '—'}</td>
+            <td>£${item.sent_at || '—'}</td>
+            <td>${new Date(item.created_at).toLocaleString()}</td>
           `;
           tbody.appendChild(row);
         });
@@ -73,8 +104,6 @@
         document.cookie = 'authorization=; Max-Age=0';
         window.location.href = 'https://bookkeppersai.banditsaimarketing.com';
       }
-
-      loadExceptions();
     }
   </script>
 </body>

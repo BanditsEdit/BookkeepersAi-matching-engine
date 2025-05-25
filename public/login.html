@@ -82,6 +82,8 @@
   <script>
     async function login() {
       const token = document.getElementById('token').value;
+      const errorDiv = document.getElementById('error');
+      
       if (!token) {
         document.getElementById('error').innerText = "Access token is required.";
         return;

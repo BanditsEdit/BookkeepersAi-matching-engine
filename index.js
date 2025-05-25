@@ -10,9 +10,15 @@ app.use(express.json());
 
 // ✅ Supabase token-based auth middleware
 const authWithSupabase = async (req, res, next) => {
-  const token = req.headers['authorization'];
+  console.log("🔐 Incoming token:", req.headers['authorization']);
 
-  if (!token) return res.status(401).send('No token provided.');
+  const token = req.headers['authorization'];
+  console.log('🔐 Incoming token:', token);
+
+  if (!token) {
+    console.warn('🚫 No token provided');
+    return res.status(401).send('No token provided.');
+}
 
   const { data, error } = await supabase
     .from('client_access')
@@ -20,13 +26,20 @@ const authWithSupabase = async (req, res, next) => {
     .eq('access_token', token)
     .single();
 
-  if (error || !data) return res.status(403).send('Access denied.');
-
+  if (error || !data) {
+    console.error('❌ Auth failed - token not found or error:', error);
+    return res.status(403).send('Access denied.');
+  }
   const now = new Date();
+   console.log('🔍 Client access data:', data);
 
-  if (data.status !== 'active') return res.status(403).send('Access revoked.');
+  if (data.status !== 'active') {
+    console.warn('⚠️ Token status not active:', data.status);
+    return res.status(403).send('Access revoked.');
+  }
 
   if (data.expires_at && new Date(data.expires_at) < now) {
+    console.warn('⏳ Token expired at', data.expires_at);
     await supabase
       .from('client_access')
       .update({ status: 'expired' })
@@ -35,6 +48,7 @@ const authWithSupabase = async (req, res, next) => {
   }
 
   if (data.reminder_count >= 3) {
+    console.warn('📛 Reminder count limit hit for client:', data.client_id)
     await supabase
       .from('client_access')
       .update({ status: 'revoked' })
@@ -278,5 +292,5 @@ app.use((req, res) => {
 
 const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
-  console.log(Match Engine live on port ${PORT});
+  console.log(`Match Engine live on port ${PORT}`);
 });

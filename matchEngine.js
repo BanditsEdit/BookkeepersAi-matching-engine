@@ -129,7 +129,7 @@ async function createException(transaction, result) {
     .insert([{
       transaction_id: transaction.id,
       client_id: transaction.client_id,
-      reason: 'No rule matched with high confidence',
+      reason: 'Low confidence match',
       confidence_score: result.confidence,
       is_resolved: false,
       created_at: new Date().toISOString()
