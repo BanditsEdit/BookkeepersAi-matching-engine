@@ -302,7 +302,7 @@ app.post('/bookkeeper-clients', authWithSupabase, async (req, res) => {
     const { data: permissionLinks, error: linkError } = await supabase
       .from('bookkeeper_client_permissions')
       .select('bookkeeper_client_id')
-      .eq('bookkeeper_id', bookkeeperId);
+      .eq('client_id', bookkeeperId);
 
     if (linkError) throw linkError;
 
