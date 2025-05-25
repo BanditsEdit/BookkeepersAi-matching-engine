@@ -286,54 +286,89 @@ app.post('/approve/:id', authWithSupabase, async (req, res) => {
 });
 
 // ✅ Create new client
-app.post('/clients', authWithSupabase, async (req, res) => {
+app.post('/bookkeeper-clients', authWithSupabase, async (req, res) => {
   const { name, email, company } = req.body;
 
   if (!name || !email || !company) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
 
+  const bookkeeperId = req.client.client_id;
+
+  let duplicate = false;
+
   try {
-    // Step 1: Insert into bookkeeper_clients
-    const { data: inserted, error: insertError } = await supabase
+    // 1. Get permission links (safe even if table is empty)
+    const { data: permissionLinks, error: linkError } = await supabase
+      .from('bookkeeper_client_permissions')
+      .select('bookkeeper_client_id')
+      .eq('bookkeeper_id', bookkeeperId);
+
+    if (linkError) throw linkError;
+
+    const clientIds = (permissionLinks || []).map(p => p.bookkeeper_client_id);
+
+    if (clientIds.length > 0) {
+      // 2. Lookup clients by ID (safe even if clientIds is empty)
+      const { data: clients, error: clientFetchError } = await supabase
+        .from('bookkeeper_clients')
+        .select('email, id')
+        .in('id', clientIds);
+
+      if (clientFetchError) throw clientFetchError;
+
+      // 3. Check for duplicate by email
+      duplicate = (clients || []).some(c => c.email === email);
+    }
+  } catch (error) {
+    console.error('❌ Error during duplicate check:', error);
+    return res.status(500).json({ error: 'Duplicate check failed.' });
+  }
+
+  if (duplicate) {
+    return res.status(409).json({ error: 'A client with this email already exists.' });
+  }
+
+  try {
+    // 4. Insert into bookkeeper_clients
+    const { data: insertedClient, error: clientError } = await supabase
       .from('bookkeeper_clients')
       .insert([{
         name,
         email,
         company,
-        bookkeeper_id: req.client.client_id, // ← from token / auth
         created_at: new Date().toISOString()
       }])
-      .select(); // 👈 ensures you get the inserted row back
+      .select();
 
-    if (insertError) {
-      console.error('❌ Error inserting client:', insertError);
-      return res.status(500).json({ error: 'Failed to save client' });
+    if (clientError || !insertedClient || !insertedClient[0]) {
+      console.error('❌ Supabase client insert error:', clientError);
+      return res.status(500).json({ error: 'Could not insert client.' });
     }
 
-    const newClient = inserted[0];
+    const newClientId = insertedClient[0].id;
 
-    // Step 2: Add a permission row so the bookkeeper can access this client
+    // 5. Insert permission link
     const { error: permissionError } = await supabase
-      .from('permissions')
+      .from('bookkeeper_client_permissions')
       .insert([{
-        bookkeeper_id: req.client.client_id,
-        bookkeeper_client_id: newClient.id
+        bookkeeper_id: bookkeeperId,
+        bookkeeper_client_id: newClientId
       }]);
 
     if (permissionError) {
-      console.error('⚠️ Client saved, but permission insert failed:', permissionError);
-      // Optional: Rollback or at least warn — you can still return success if client saved
-      return res.status(500).json({ error: 'Client saved, but permission could not be set' });
+      console.error('⚠️ Permission insert failed:', permissionError);
+      return res.status(500).json({ error: 'Client saved, but permission could not be created.' });
     }
 
-    res.status(201).json({ message: 'Client added successfully', data: newClient });
+    res.status(201).json({ message: 'Client added successfully', data: insertedClient[0] });
 
   } catch (err) {
     console.error('❌ Unexpected error:', err);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
+
 
 // Fallback
 app.use((req, res) => {
