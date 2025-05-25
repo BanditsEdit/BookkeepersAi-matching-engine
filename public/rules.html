@@ -63,6 +63,27 @@
     const token = tokenCookie.split('=')[1];
     let clientId = null;
 
+    window.deleteRule = async function(ruleId) {
+      const confirmed = confirm("Are you sure you want to delete this rule?");
+      if (!confirmed) return;
+
+      const res = await fetch(`/rules/${ruleId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': token
+        }
+      });
+
+      if (res.ok) {
+        alert("Rule deleted.");
+        await loadRules(); // refresh the table
+      } else {
+        const error = await res.json();
+        alert("Failed to delete rule: " + (error.message || 'Unknown error'));
+      }
+    };
+
+
     async function getClientInfo() {
       const res = await fetch('/me', {
         headers: { 'Authorization': token }
