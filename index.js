@@ -294,35 +294,43 @@ app.post('/clients', authWithSupabase, async (req, res) => {
   }
 
   try {
-     const { data: existing } = await supabase
+    // Step 1: Insert into bookkeeper_clients
+    const { data: inserted, error: insertError } = await supabase
       .from('bookkeeper_clients')
-      .select('*')
-      .eq('client_id', req.client.client_id)
-      .eq('email', email)
-      .maybeSingle();
-
-    if (existing) {
-      return res.status(409).json({ error: 'Client with this email already exists.' });
-    }
-
-    const { data, error } = await supabase
-      .from('bookkeeper_clients') // 👈 your actual table
       .insert([{
         name,
         email,
         company,
-        client_id: req.client.client_id,
+        bookkeeper_id: req.client.client_id, // ← from token / auth
         created_at: new Date().toISOString()
-      }]);
+      }])
+      .select(); // 👈 ensures you get the inserted row back
 
-    if (error) {
-      console.error('❌ Error inserting client:', error);
+    if (insertError) {
+      console.error('❌ Error inserting client:', insertError);
       return res.status(500).json({ error: 'Failed to save client' });
     }
 
-    res.status(201).json({ message: 'Client added successfully', data });
+    const newClient = inserted[0];
+
+    // Step 2: Add a permission row so the bookkeeper can access this client
+    const { error: permissionError } = await supabase
+      .from('permissions')
+      .insert([{
+        bookkeeper_id: req.client.client_id,
+        bookkeeper_client_id: newClient.id
+      }]);
+
+    if (permissionError) {
+      console.error('⚠️ Client saved, but permission insert failed:', permissionError);
+      // Optional: Rollback or at least warn — you can still return success if client saved
+      return res.status(500).json({ error: 'Client saved, but permission could not be set' });
+    }
+
+    res.status(201).json({ message: 'Client added successfully', data: newClient });
+
   } catch (err) {
-    console.error('❌ Unexpected error saving client:', err);
+    console.error('❌ Unexpected error:', err);
     res.status(500).json({ error: 'Server error' });
   }
 });
