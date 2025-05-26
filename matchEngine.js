@@ -86,8 +86,6 @@ async function matchTransaction(transaction) {
     outcome: 'manual_review',
     matched: false
 
-   console.log('No rule matched. Returning manual_review fallback.');
-
   };
 
   await logMatchAudit(transaction.client_id, transaction.id, fallback);
