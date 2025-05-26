@@ -184,13 +184,21 @@ app.put('/rules/:id', authWithSupabase, async (req, res) => {
 // 🔁 Match Engine
 app.post('/match', async (req, res) => {
   try {
-    const transaction = req.body;
-    const result = await matchTransaction(req.body.transaction, req.body.rules || []);
+    const transaction = req.body.transaction;
+    const invoices = req.body.invoices || [];
+    const rules = req.body.rules || [];
+
+    const result = await matchTransaction(transaction, invoices, rules);
+
+    // ✅ SEND RESULT BACK TO MAKE
+    return res.status(200).json(result);
+
   } catch (err) {
     console.error('Matching failed:', err);
-    res.status(500).json({ error: 'Internal server error' });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
+
 
 // ✅ Delete rule
 app.delete('/rules/:id', authWithSupabase, async (req, res) => {
