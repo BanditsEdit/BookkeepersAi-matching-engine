@@ -86,7 +86,7 @@ async function matchTransaction(transaction) {
     outcome: 'manual_review',
     matched: false
 
-   console.log("❌ No rule matched. Returning manual_review fallback.");
+   console.log("No rule matched. Returning manual_review fallback.");
 
   };
 
