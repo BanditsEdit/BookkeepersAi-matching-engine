@@ -19,18 +19,24 @@
     </div>
   </div>
 
+  <td>
+    <button onclick="resolveException('${item.id}')">Resolve</button>
+    <button onclick="createRule('${item.transaction_id}')">Create Rule</button>
+  </td>
+
   <h1>Transaction Exceptions</h1>
   <table id="exceptionsTable">
     <thead>
       <tr>
         <th>Client Name</th>
-        <th>Transaction ID</th>        
+        <th>Transaction ID</th>
         <th>Reason</th>
         <th>Score</th>
         <th>Status</th>
         <th>Resolved By</th>
         <th>Sent At</th>
         <th>Created At</th>
+        <th>Actions</th>
       </tr>
     </thead>
     <tbody></tbody>
@@ -38,71 +44,103 @@
 
   <script>
     const tokenCookie = document.cookie.split('; ').find(row => row.startsWith('authorization='));
-    console.log('🍪 Token cookie:', tokenCookie);
 
     if (!tokenCookie) {
-      console.warn('🚫 No token found in cookies');
       window.location.href = `/login.html?redirect=exceptions`;
     } else {
       const token = tokenCookie.split('=')[1];
-      console.log('🔐 Extracted token:', token);
 
       fetch('/me', {
         headers: { 'Authorization': token }
-      }).then(res => {
-        if (!res.ok) {
-          throw new Error('Invalid or expired token');
-        }
+      })
+      .then(res => {
+        if (!res.ok) throw new Error('Invalid or expired token');
         return res.json();
-      }).then(user => {
-        console.log('✅ Authenticated as:', user.client_id);
-        loadExceptions(); // ✅ Run only after confirming token is valid
-      }).catch(err => {
+      })
+      .then(user => {
+        loadExceptions();
+      })
+      .catch(err => {
         alert('Session expired. Please log in again.');
         document.cookie = 'authorization=; Max-Age=0';
-        window.location.href = `${redirect}.html`;
+        window.location.href = `/login.html?redirect=exceptions`;
       });
 
-
       async function loadExceptions() {
-        console.log('📥 Fetching /exceptions...');
         const res = await fetch('/exceptions', {
           headers: { 'Authorization': token }
         });
 
-        console.log('📡 /exceptions status:', res.status);
-
         if (!res.ok) {
-          alert("Failed to load exceptions. Session may have expired.");
+          alert("❌ Failed to load exceptions. Session may have expired.");
           window.location.href = `/login.html?redirect=exceptions`;
           return;
         }
 
-        const data = (await res.json()).data || [];
-        console.log('✅ Loaded exceptions:', data);
-
+        const json = await res.json();
+        const data = json.data || [];
         const tbody = document.querySelector('#exceptionsTable tbody');
         tbody.innerHTML = '';
+
+        if (data.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="9">No exceptions found.</td></tr>`;
+          return;
+        }
 
         data.forEach(item => {
           const row = document.createElement('tr');
           row.innerHTML = `
-            <td>${item.client_name}</td>
+            <td>${item.client_name || '—'}</td>
             <td>${item.transaction_id}</td>
-            <td>${item.reason || '-'}</td>
+            <td>${item.reason || '—'}</td>
             <td>£${item.confidence_score || '—'}</td>
             <td>${item.is_resolved ? 'Resolved' : 'Pending'}</td>
-            <td>£${item.resolved_by || '—'}</td>
-            <td>£${item.sent_at || '—'}</td>
-            <td>${new Date(item.created_at).toLocaleString()}</td>
+            <td>${item.resolved_by || '—'}</td>
+            <td>${item.sent_at ? new Date(item.sent_at).toLocaleString() : '—'}</td>
+            <td>${item.created_at ? new Date(item.created_at).toLocaleString() : '—'}</td>
+            <td>
+              <button onclick="resolveException('${item.transaction_id}')">Resolve</button>
+              <button onclick="createRule('${item.transaction_id}')">Create Rule</button>
+            </td>
           `;
           tbody.appendChild(row);
         });
       }
 
+      async function resolveException(id) {
+        const confirmed = confirm("Mark this exception as resolved?");
+        if (!confirmed) return;
+
+        const res = await fetch(`/exceptions/resolve/${id}`, {
+          method: 'PATCH',
+          headers: { 'Authorization': token }
+        });
+
+        if (res.ok) {
+          alert("✅ Exception resolved!");
+          loadExceptions(); // Refresh the table
+        } else {
+          alert("❌ Failed to resolve exception.");
+        }
+      }
+
+      function createRule(transactionId) {
+        // Optional: redirect to rules.html with pre-filled query
+        window.location.href = `/rules.html?from_tx=${transactionId}`;
+      }
+
+
       function logout() {
         document.cookie = 'authorization=; Max-Age=0';
         window.location.href = 'https://bookkeppersai.banditsaimarketing.com';
+      }
+
+      function resolveException(id) {
+        alert(`TODO: Resolve logic for transaction ${id}`);
+      }
+
+      function createRule(id) {
+        alert(`TODO: Create rule logic for transaction ${id}`);
       }
     }
   </script>
