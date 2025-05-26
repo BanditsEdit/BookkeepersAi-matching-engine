@@ -78,8 +78,8 @@ async function matchTransaction(transaction, rulesFromPayload = []) {
           ruleUsed: rule.rule_name,
           confidence,
           outcome: 'auto_reconcile',
-          account_code: rule.account_code,
-          vat_code: rule.vat_code,
+          Account Code: rule.account_code,
+          Vat Code: rule.vat_code,
           matched: true
         };
       }
@@ -90,8 +90,8 @@ async function matchTransaction(transaction, rulesFromPayload = []) {
         ruleUsed: rule.rule_name,
         confidence,
         outcome: 'auto_reconcile',
-        account_code: rule.account_code,
-        vat_code: rule.vat_code,
+        Account Code: rule.account_code,
+        Vat Code: rule.vat_code,
         matched: true
       };
 
