@@ -49,10 +49,13 @@ function calculateConfidence(transaction, rule) {
 // Main match function
 async function matchTransaction(transaction) {
   const rules = transaction.rules?.length > 0
-  ? transaction.rules
-  : await fetchRulesForClient(transaction.client_id);
+    ? transaction.rules
+    : await fetchRulesForClient(transaction.client_id);
 
-  
+  console.log(rules === transaction.rules ? "📦 Using Make.com-supplied rules" : "🗄️ Using Supabase rules");
+  console.log("📋 Rules loaded:", rules.map(r => r.rule_name || r.id));
+
+
   for (let rule of rules) {
     const confidence = calculateConfidence(transaction, rule);
     console.log(`🧠 Rule match attempt: ${rule.rule_name} → Confidence: ${confidence}`);
@@ -82,6 +85,9 @@ async function matchTransaction(transaction) {
     confidence: 0,
     outcome: 'manual_review',
     matched: false
+
+   console.log("❌ No rule matched. Returning manual_review fallback.");
+
   };
 
   await logMatchAudit(transaction.client_id, transaction.id, fallback);
