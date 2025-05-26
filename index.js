@@ -358,6 +358,53 @@ app.post('/bookkeeper-clients', authWithSupabase, async (req, res) => {
   }
 });
 
+app.patch('/exceptions/resolve/:id', authWithSupabase, async (req, res) => {
+  const { id } = req.params;
+
+  const { error } = await supabase
+    .from('exceptions')
+    .update({
+      is_resolved: true,
+      resolved_by: req.client.email || 'clients',
+      resolved_at: new Date().toISOString()
+    })
+    .eq('id', id)
+    .eq('client_id', req.client.client_id);
+
+  if (error) return res.status(500).json({ error: error.message });
+
+  res.json({ success: true });
+});
+
+app.post('/exceptions/:id/create-rule', authWithSupabase, async (req, res) => {
+  const { id } = req.params;
+
+  const { data: ex, error: exError } = await supabase
+    .from('exceptions')
+    .select('*')
+    .eq('id', id)
+    .single();
+
+  if (exError || !ex) return res.status(404).json({ error: 'Exception not found' });
+
+  const rule = {
+    rule_name: 'Generated from Exception',
+    vendor_keyword: ex.description || '',
+    account_code: req.body.account_code || '400',
+    vat_code: req.body.vat_code || 'NONE',
+    amount_range: { min: 0.01, max: parseFloat(ex.amount) + 1 },
+    client_id: ex.client_id,
+    is_active: true
+  };
+
+  const { error } = await supabase.from('reconciliation_rules').insert([rule]);
+
+  if (error) return res.status(500).json({ error: error.message });
+
+  res.json({ success: true, rule });
+});
+
+
 
 // Fallback
 app.use((req, res) => {
