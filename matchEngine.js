@@ -48,7 +48,10 @@ function calculateConfidence(transaction, rule) {
 
 // Main match function
 async function matchTransaction(transaction) {
-  const rules = await fetchRulesForClient(transaction.client_id);
+  const rules = transaction.rules?.length > 0
+  ? transaction.rules
+  : await fetchRulesForClient(transaction.client_id);
+
   
   for (let rule of rules) {
     const confidence = calculateConfidence(transaction, rule);
