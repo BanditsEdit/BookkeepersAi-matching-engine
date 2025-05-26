@@ -51,6 +51,8 @@ async function matchTransaction(transaction, rulesFromPayload = []) {
   const rules = rulesFromPayload.length > 0
     ? rulesFromPayload
     : await fetchRulesForClient(transaction.client_id);
+  console.log("📦 Payload rule sample:", rulesFromPayload[0]);
+
 
   console.log(rules === transaction.rules ? "📦 Using Make.com-supplied rules" : "🗄️ Using Supabase rules");
   console.log("📋 Rules loaded:", rules.map(r => r.rule_name || r.id));
@@ -59,6 +61,12 @@ async function matchTransaction(transaction, rulesFromPayload = []) {
   for (let rule of rules) {
     const confidence = calculateConfidence(transaction, rule);
     console.log(`🧠 Rule match attempt: ${rule.rule_name} → Confidence: ${confidence}`);
+    console.log("🧾 Matching with rule:", rule);
+
+    if (!rule.account_code || !rule.vat_code) {
+      console.warn('⚠️ Rule is missing account_code or vat_code:', rule);
+    }
+
 
 
     if (confidence >= 50) {
@@ -67,11 +75,11 @@ async function matchTransaction(transaction, rulesFromPayload = []) {
         console.error("❌ Missing transaction.id or client_id. Skipping update.");
         return {
           matchType: 'rule',
-          ruleName: rule.rule_name,
+          ruleUsed: rule.rule_name,
           confidence,
           outcome: 'auto_reconcile',
-          accountCode: rule.account_code,
-          vatCode: rule.vat_code,
+          account_code: rule.account_code,
+          vat_code: rule.vat_code,
           matched: true
         };
       }
@@ -79,11 +87,11 @@ async function matchTransaction(transaction, rulesFromPayload = []) {
       const result = {
         matchType: 'rule',
         ruleId: rule.id?.length === 36 ? rule.id : null,
-        ruleName: rule.rule_name,
+        ruleUsed: rule.rule_name,
         confidence,
         outcome: 'auto_reconcile',
-        accountCode: rule.account_code,
-        vatCode: rule.vat_code,
+        account_code: rule.account_code,
+        vat_code: rule.vat_code,
         matched: true
       };
 
