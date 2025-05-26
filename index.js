@@ -404,6 +404,35 @@ app.post('/exceptions/:id/create-rule', authWithSupabase, async (req, res) => {
   res.json({ success: true, rule });
 });
 
+app.get('/admin-metrics', authWithSupabase, async (req, res) => {
+  try {
+    const [clients, txs, matched, reviews, exceptions] = await Promise.all([
+      supabase.from('clients').select('id'),
+      supabase.from('transactions_raw').select('id'),
+      supabase.from('transactions_raw').select('id').eq('status', 'matched'),
+      supabase.from('transactions_raw').select('id').eq('status', 'manual_review'),
+      supabase.from('exceptions')
+        .select('reason, count:reason', { count: 'exact', groupBy: 'reason' })
+        .limit(5)
+    ]);
+
+    const total = txs.data.length;
+    const matchedCount = matched.data.length;
+    const matchPercent = total ? Math.round((matchedCount / total) * 100) : 0;
+
+    res.json({
+      totalClients: clients.data.length,
+      totalTransactions: total,
+      autoMatched: matchedCount,
+      autoMatchPercent: matchPercent,
+      manualReviews: reviews.data.length,
+      topExceptions: exceptions.data || []
+    });
+  } catch (err) {
+    console.error('Metrics error:', err);
+    res.status(500).json({ error: 'Failed to load metrics' });
+  }
+});
 
 
 // Fallback
