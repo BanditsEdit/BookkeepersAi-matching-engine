@@ -183,6 +183,7 @@ app.put('/rules/:id', authWithSupabase, async (req, res) => {
 
 // 🔁 Match Engine
 app.post('/match', async (req, res) => {
+  console.log('📨 Full request body:', JSON.stringify(req.body, null, 2));
   try {
     const transaction = req.body.transaction;
     const invoices = req.body.invoices || [];
