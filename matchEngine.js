@@ -62,9 +62,24 @@ async function matchTransaction(transaction, rulesFromPayload = []) {
 
 
     if (confidence >= 50) {
+      // 🛡️ Guard against missing IDs
+      if (!transaction?.id || !transaction?.client_id) {
+        console.error("❌ Missing transaction.id or client_id. Skipping update.");
+        return {
+          matchType: 'rule',
+          ruleName: rule.rule_name,
+          confidence,
+          outcome: 'auto_reconcile',
+          accountCode: rule.account_code,
+          vatCode: rule.vat_code,
+          matched: true
+        };
+      }
+      
       const result = {
         matchType: 'rule',
-        ruleUsed: rule.rule_name || rule.id,
+        ruleId: rule.id?.length === 36 ? rule.id : null,
+        ruleName: rule.rule_name,
         confidence,
         outcome: 'auto_reconcile',
         accountCode: rule.account_code,
