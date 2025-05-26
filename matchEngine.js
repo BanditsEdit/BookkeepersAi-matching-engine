@@ -47,7 +47,7 @@ function calculateConfidence(transaction, rule) {
 
 
 // Main match function
-async function matchTransaction(transaction, rulesFromPayload = []) {
+async function matchTransaction(transaction, invoices = [], rulesFromPayload = []) {
   const rules = rulesFromPayload.length > 0
     ? rulesFromPayload
     : await fetchRulesForClient(transaction.client_id);
@@ -56,6 +56,9 @@ async function matchTransaction(transaction, rulesFromPayload = []) {
 
   console.log(rules === transaction.rules ? "📦 Using Make.com-supplied rules" : "🗄️ Using Supabase rules");
   console.log("📋 Rules loaded:", rules.map(r => r.rule_name || r.id));
+  console.log("📦 Rules from payload:", rulesFromPayload);
+  console.log("📋 Using rules:", rules);
+
 
 
   for (let rule of rules) {
