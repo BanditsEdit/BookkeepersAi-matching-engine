@@ -47,9 +47,9 @@ function calculateConfidence(transaction, rule) {
 
 
 // Main match function
-async function matchTransaction(transaction) {
-  const rules = transaction.rules?.length > 0
-    ? transaction.rules
+async function matchTransaction(transaction, rulesFromPayload = []) {
+  const rules = rulesFromPayload.length > 0
+    ? rulesFromPayload
     : await fetchRulesForClient(transaction.client_id);
 
   console.log(rules === transaction.rules ? "📦 Using Make.com-supplied rules" : "🗄️ Using Supabase rules");
