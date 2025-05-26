@@ -63,11 +63,12 @@ async function matchTransaction(transaction, rulesFromPayload = []) {
     console.log(`🧠 Rule match attempt: ${rule.rule_name} → Confidence: ${confidence}`);
     console.log("🧾 Matching with rule:", rule);
 
-    if (!rule.account_code || !rule.vat_code) {
-      console.warn('⚠️ Rule is missing account_code or vat_code:', rule);
+    if (
+      typeof rule.account_code !== 'string' || rule.account_code.trim() === '' ||
+      typeof rule.vat_code !== 'string' || rule.vat_code.trim() === ''
+    ) {
+      console.warn("⚠️ Rule is missing account_code or vat_code:", rule);
     }
-
-
 
     if (confidence >= 50) {
       // 🛡️ Guard against missing IDs
