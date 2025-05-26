@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Admin Dashboard</title>
+  <link rel="stylesheet" href="style.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <div class="navbar">
+    <div class="nav-left">
+      <span class="logo">📊 Admin Dashboard</span>
+      <a href="pending-reviews.html">Dashboard</a>
+      <a href="audit.html">Audit Log</a>
+      <a href="rules.html">Rules</a>
+      <a href="exceptions.html">Exceptions</a>
+    </div>
+    <div class="nav-right">
+      <button onclick="logout()">Logout</button>
+    </div>
+  </div>
+
+  <h1>System Overview</h1>
+  <div id="metrics">
+    <p><strong>Total Clients:</strong> <span id="totalClients">...</span></p>
+    <p><strong>Total Transactions:</strong> <span id="totalTx">...</span></p>
+    <p><strong>Auto-Matched:</strong> <span id="matchedTx">...</span></p>
+    <p><strong>Manual Reviews:</strong> <span id="manualReviews">...</span></p>
+  </div>
+
+  <canvas id="reconciliationChart" width="400" height="200"></canvas>
+
+  <h2>Top Exception Reasons</h2>
+  <ul id="topExceptions"></ul>
+
+  <h2>Client-by-Client Breakdown</h2>
+  <table>
+    <thead>
+      <tr><th>Client</th><th>Matched</th><th>Manual</th><th>Total</th><th>Match %</th></tr>
+    </thead>
+    <tbody id="clientBreakdown"></tbody>
+  </table>
+
+  <h2>Export</h2>
+  <button onclick="exportCSV()">Export as CSV</button>
+  <button onclick="window.print()">Export as PDF</button>
+
+  <script>
+    const tokenCookie = document.cookie.split('; ').find(r => r.startsWith('authorization='));
+    if (!tokenCookie) {
+      window.location.href = '/login.html?redirect=admin-dashboard';
+    } else {
+      const token = tokenCookie.split('=')[1];
+
+      fetch('/admin-metrics', {
+        headers: { Authorization: token }
+      }).then(res => res.json()).then(data => {
+        document.getElementById('totalClients').innerText = data.totalClients;
+        document.getElementById('totalTx').innerText = data.totalTransactions;
+        document.getElementById('matchedTx').innerText = `${data.autoMatched} (${data.autoMatchPercent}%)`;
+        document.getElementById('manualReviews').innerText = data.manualReviews;
+
+        const top = document.getElementById('topExceptions');
+        data.topExceptions.forEach(item => {
+          const li = document.createElement('li');
+          li.textContent = `${item.reason} (${item.count})`;
+          top.appendChild(li);
+        });
+
+        const tbody = document.getElementById('clientBreakdown');
+        data.clients.forEach(client => {
+          const row = document.createElement('tr');
+          const matchPercent = client.total ? Math.round((client.matched / client.total) * 100) : 0;
+          row.innerHTML = `
+            <td>${client.name || client.client_id}</td>
+            <td>${client.matched}</td>
+            <td>${client.manual}</td>
+            <td>${client.total}</td>
+            <td>${matchPercent}%</td>
+          `;
+          tbody.appendChild(row);
+        });
+
+        const ctx = document.getElementById('reconciliationChart').getContext('2d');
+        new Chart(ctx, {
+          type: 'doughnut',
+          data: {
+            labels: ['Auto-Matched', 'Manual Review'],
+            datasets: [{
+              data: [data.autoMatched, data.manualReviews],
+              backgroundColor: ['#10b981', '#f59e0b']
+            }]
+          },
+          options: {
+            responsive: true,
+            plugins: { legend: { position: 'bottom' } }
+          }
+        });
+      });
+    }
+
+    function logout() {
+      document.cookie = 'authorization=; Max-Age=0';
+      window.location.href = 'https://bookkeppersai.banditsaimarketing.com';
+    }
+
+    function exportCSV() {
+      const rows = [
+        ['Metric', 'Value'],
+        ['Total Clients', document.getElementById('totalClients').innerText],
+        ['Total Transactions', document.getElementById('totalTx').innerText],
+        ['Auto-Matched', document.getElementById('matchedTx').innerText],
+        ['Manual Reviews', document.getElementById('manualReviews').innerText]
+      ];
+      let csv = rows.map(e => e.join(",")).join("\n");
+      const blob = new Blob([csv], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'admin_metrics.csv';
+      link.click();
+      URL.revokeObjectURL(url);
+    }
+  </script>
+</body>
+</html>
