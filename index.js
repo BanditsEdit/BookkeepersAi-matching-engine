@@ -185,8 +185,7 @@ app.put('/rules/:id', authWithSupabase, async (req, res) => {
 app.post('/match', async (req, res) => {
   try {
     const transaction = req.body;
-    const result = await matchTransaction(transaction);
-    res.json(result);
+    const result = await matchTransaction(req.body.transaction, req.body.rules || []);
   } catch (err) {
     console.error('Matching failed:', err);
     res.status(500).json({ error: 'Internal server error' });
